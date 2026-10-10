@@ -102,12 +102,12 @@ export async function getStatusReport(manifest: Manifest, targetServer?: string)
     }
   }
 
-  const headers = ["Server", "Claude", "Antigravity", "Cursor", "Codex", "Git Repo", "Command"];
+  const headers = ["Server", "Claude", "Antigravity", "AG CLI", "Cursor", "Codex", "Git Repo", "Command"];
   const rows: string[][] = [];
 
   for (const server of servers) {
-    const agentStatuses = (["claude", "antigravity", "cursor", "codex"] as AgentName[]).map((agentName) => {
-      const targetAgents = server.agents ?? ["claude", "antigravity", "cursor", "codex"];
+    const agentStatuses = (["claude", "antigravity", "antigravity-cli", "cursor", "codex"] as AgentName[]).map((agentName) => {
+      const targetAgents = server.agents ?? ["claude", "antigravity", "antigravity-cli", "cursor", "codex"];
       if (!targetAgents.includes(agentName)) return "-";
       const map = agentServersMap.get(agentName);
       if (!map || !map.has(server.name)) return "MISSING";
@@ -243,16 +243,24 @@ export async function registerServers(
     dryRun ? "Register preview (dry run):" : "Registering servers in coding agents:",
   ];
 
-  for (const server of servers) {
-    const targetAgents = getAgents(agentNames ?? server.agents);
-    for (const agent of targetAgents) {
-      const diffs = await agent.register(server, dryRun);
-      allDiffs.push(...diffs);
-      for (const d of diffs) {
-        if (d.action !== "noop") {
-          lines.push(`[${agent.displayName}] ${d.file}:`);
-          d.changes.forEach((c) => lines.push(`  ${c}`));
-        }
+  const targetAgents = getAgents(agentNames);
+  for (const agent of targetAgents) {
+    const serversForAgent = servers.filter((s) => {
+      if (agentNames && agentNames.length > 0) {
+        return agentNames.includes(agent.name);
+      }
+      const sAgents = s.agents ?? ["claude", "antigravity", "antigravity-cli", "cursor", "codex"];
+      return sAgents.includes(agent.name);
+    });
+
+    if (serversForAgent.length === 0) continue;
+
+    const diffs = await agent.register(serversForAgent, dryRun);
+    allDiffs.push(...diffs);
+    for (const d of diffs) {
+      if (d.action !== "noop") {
+        lines.push(`[${agent.displayName}] ${d.file}:`);
+        d.changes.forEach((c) => lines.push(`  ${c}`));
       }
     }
   }
@@ -369,10 +377,10 @@ export async function startMcp(): Promise<void> {
     {
       title: "Register MCP servers in coding agents",
       description:
-        "Register manifest servers into coding agents (Claude Code, Antigravity, Cursor, Codex). Creates rolling backups (*.bak.constellation) and performs atomic writes.",
+        "Register manifest servers into coding agents (Claude Code, Antigravity, Antigravity CLI, Cursor, Codex). Creates rolling backups (*.bak.constellation) and performs atomic writes.",
       inputSchema: {
         servers: z.array(z.string()).optional().describe("Specific server names to register (defaults to all)"),
-        agents: z.array(z.enum(["claude", "antigravity", "cursor", "codex"])).optional().describe("Target agents (defaults to server's configured agents)"),
+        agents: z.array(z.enum(["claude", "antigravity", "antigravity-cli", "cursor", "codex"])).optional().describe("Target agents (defaults to server's configured agents)"),
         dry_run: z.boolean().default(false).optional().describe("Preview exact diffs without modifying files"),
       },
       annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -393,7 +401,7 @@ export async function startMcp(): Promise<void> {
         "Remove an MCP server from coding agent configurations. Creates rolling backups and performs atomic writes.",
       inputSchema: {
         server: z.string().min(1).describe("Name of the server to unregister"),
-        agents: z.array(z.enum(["claude", "antigravity", "cursor", "codex"])).optional().describe("Target agents (defaults to all)"),
+        agents: z.array(z.enum(["claude", "antigravity", "antigravity-cli", "cursor", "codex"])).optional().describe("Target agents (defaults to all)"),
         dry_run: z.boolean().default(false).optional().describe("Preview diffs without modifying files"),
       },
       annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -472,8 +480,12 @@ export async function startMcp(): Promise<void> {
         if (report.issues.length > 0) {
           lines.push("Issues Detected:");
           for (const iss of report.issues) {
-            const loc = iss.file ?? iss.agent ?? iss.server ?? "general";
-            lines.push(`  [${iss.severity.toUpperCase()}] (${iss.category}) at ${loc}: ${iss.message}`);
+            if (iss.category === "unmanaged") {
+              lines.push(`  [${iss.severity.toUpperCase()}] (${iss.category}) ${iss.message}`);
+            } else {
+              const loc = iss.file ?? iss.agent ?? iss.server ?? "general";
+              lines.push(`  [${iss.severity.toUpperCase()}] (${iss.category}) at ${loc}: ${iss.message}`);
+            }
             if (iss.fix) {
               lines.push(`    Fix: ${iss.fix}`);
             }
@@ -672,7 +684,7 @@ Commands:
 Options:
   --dry-run                     Preview file modifications without writing
   --json                        Output structured JSON
-  --agents=a,b                  Target specific agents (claude, antigravity, cursor, codex)
+  --agents=a,b                  Target specific agents (claude, antigravity, antigravity-cli, cursor, codex)
   --timeout=ms                  Health check timeout in milliseconds
   --no-pull                     Skip git pull in update
   --no-build                    Skip build in update

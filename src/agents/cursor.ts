@@ -77,64 +77,85 @@ export class CursorAgentManager implements AgentManager {
     return servers;
   }
 
-  async register(server: ServerEntry, dryRun: boolean): Promise<DiffEntry[]> {
+  async register(servers: ServerEntry | ServerEntry[], dryRun: boolean): Promise<DiffEntry[]> {
+    const serverList = Array.isArray(servers) ? servers : [servers];
+    const diffs: DiffEntry[] = [];
     const filePath = this.getConfigFile();
     const { data, lineEnding } = this.loadRawConfigFile();
     const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
-    const existing = mcpServers[server.name];
-    const newConfig = buildServerEntryConfig(server, existing);
+    let fileChanged = false;
 
-    const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
+    for (const server of serverList) {
+      const existing = mcpServers[server.name];
+      const newConfig = buildServerEntryConfig(server, existing);
+      const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
+      diffs.push(diff);
 
-    if (dryRun || diff.action === "noop") {
-      return [diff];
+      if (diff.action !== "noop") {
+        fileChanged = true;
+        mcpServers[server.name] = newConfig;
+      }
     }
 
-    createRollingBackup(filePath);
-    data.mcpServers = {
-      ...mcpServers,
-      [server.name]: newConfig,
-    };
-    const rawJson = JSON.stringify(data, null, 2);
-    const formatted = lineEnding === "\r\n" ? rawJson.replace(/\n/g, "\r\n") + "\r\n" : rawJson + "\n";
-    atomicWriteFile(filePath, formatted);
-
-    return [diff];
-  }
-
-  async unregister(serverName: string, dryRun: boolean): Promise<DiffEntry[]> {
-    const filePath = this.getConfigFile();
-    const { data, lineEnding, exists } = this.loadRawConfigFile();
-    const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
-    const existing = mcpServers[serverName];
-
-    if (!existing && !exists) {
-      return [
-        {
-          agent: this.displayName,
-          file: filePath,
-          action: "noop",
-          changes: [`Server '${serverName}' not present in Cursor config`],
-        },
-      ];
-    }
-
-    const diff = formatConfigDiff(this.displayName, filePath, serverName, existing, undefined);
-
-    if (dryRun || diff.action === "noop") {
-      return [diff];
-    }
-
-    if (exists && existing) {
+    if (!dryRun && fileChanged) {
       createRollingBackup(filePath);
-      delete mcpServers[serverName];
       data.mcpServers = mcpServers;
       const rawJson = JSON.stringify(data, null, 2);
       const formatted = lineEnding === "\r\n" ? rawJson.replace(/\n/g, "\r\n") + "\r\n" : rawJson + "\n";
       atomicWriteFile(filePath, formatted);
     }
 
-    return [diff];
+    return diffs;
+  }
+
+  async unregister(serverNames: string | string[], dryRun: boolean): Promise<DiffEntry[]> {
+    const namesList = Array.isArray(serverNames) ? serverNames : [serverNames];
+    const diffs: DiffEntry[] = [];
+    const filePath = this.getConfigFile();
+    const { data, lineEnding, exists } = this.loadRawConfigFile();
+    const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
+    let fileChanged = false;
+
+    for (const serverName of namesList) {
+      const existing = mcpServers[serverName];
+      if (!existing && !exists) {
+        diffs.push({
+          agent: this.displayName,
+          file: filePath,
+          action: "noop",
+          changes: [`Server '${serverName}' not present in Cursor config`],
+        });
+        continue;
+      }
+
+      if (!existing) {
+        diffs.push({
+          agent: this.displayName,
+          file: filePath,
+          action: "noop",
+          changes: [`Server '${serverName}' not present in Cursor config`],
+        });
+        continue;
+      }
+
+      const diff = formatConfigDiff(this.displayName, filePath, serverName, existing, undefined);
+      diffs.push(diff);
+
+      if (diff.action !== "noop") {
+        fileChanged = true;
+        delete mcpServers[serverName];
+      }
+    }
+
+    if (!dryRun && fileChanged && exists) {
+      createRollingBackup(filePath);
+      data.mcpServers = mcpServers;
+      const rawJson = JSON.stringify(data, null, 2);
+      const formatted = lineEnding === "\r\n" ? rawJson.replace(/\n/g, "\r\n") + "\r\n" : rawJson + "\n";
+      atomicWriteFile(filePath, formatted);
+    }
+
+    return diffs;
   }
 
   async checkDrift(server: ServerEntry): Promise<DoctorIssue[]> {

@@ -2,7 +2,7 @@
 
 # Constellation MCP
 
-Trung tâm điều khiển hệ sinh thái MCP cho người học: một tệp cấu hình máy chủ tập trung (manifest), một lệnh đăng ký vào tất cả các coding agent (Claude Code, Google Antigravity, Cursor, Codex), kiểm tra sức khỏe tự động, phát hiện lệch cấu hình (drift doctor), cập nhật an toàn và quản lý các hợp đồng giao tiếp chung.
+Trung tâm điều khiển hệ sinh thái MCP cho người học: một tệp cấu hình máy chủ tập trung (manifest), một lệnh đăng ký vào tất cả các coding agent (Claude Code, Google Antigravity, Antigravity CLI, Cursor, Codex), kiểm tra sức khỏe tự động, phát hiện lệch cấu hình (drift doctor), cập nhật an toàn và quản lý các hợp đồng giao tiếp chung.
 
 ```mermaid
 flowchart TD
@@ -19,13 +19,15 @@ flowchart TD
 
   subgraph Agents["Coding Agents"]
     Claude["Claude Code\n(~/.claude.json)"]
-    Antigravity["Google Antigravity\n(~/.gemini/*/mcp_config.json)"]
+    Antigravity["Google Antigravity IDE\n(~/.gemini/*/mcp_config.json)"]
+    AntigravityCli["Antigravity CLI\n(~/.gemini/antigravity-cli/mcp_config.json)"]
     Cursor["Cursor IDE\n(~/.cursor/mcp.json)"]
     Codex["OpenAI Codex\n(~/.codex/config.toml)"]
   end
 
   Constellation -->|Đăng ký & Đồng bộ| Claude
   Constellation -->|Đăng ký & Đồng bộ CRLF| Antigravity
+  Constellation -->|Đăng ký & Đồng bộ CLI| AntigravityCli
   Constellation -->|Đăng ký & Đồng bộ| Cursor
   Constellation -->|Đăng ký & Đồng bộ TOML| Codex
 
@@ -44,10 +46,11 @@ flowchart TD
 ## Vì sao cần Constellation
 
 Khi vận hành nhiều MCP server trên các công cụ lập trình khác nhau, một số vấn đề thường xuyên phát sinh:
-1. Mỗi máy chủ phải thêm thủ công vào Claude Code và 3 tệp cấu hình Antigravity (`~/.gemini/antigravity`, `~/.gemini/config`, `~/.gemini/antigravity-ide` `mcp_config.json` với định dạng xuống dòng CRLF).
+1. Mỗi máy chủ phải thêm thủ công vào Claude Code và 3 tệp cấu hình Antigravity (`~/.gemini/antigravity`, `~/.gemini/config`, `~/.gemini/antigravity-ide` `mcp_config.json` với định dạng xuống dòng CRLF) cũng như `~/.gemini/antigravity-cli/mcp_config.json`.
 2. Các agent khác nhau có thể ghi đè làm lệch hoặc mất cấu hình của nhau.
 3. Khi mở hội thoại trước khi server khởi động xong, agent báo lỗi không liên kết được công cụ.
-4. Các hợp đồng chung giữa các dự án (như sự kiện tiến độ v1, đánh dấu bài học, hook sau khi ghi, nhãn nguồn tài liệu) nằm rải rác.
+4. Các subagent không giao diện (headless như `mcp-agy`) cần cấu hình gọn nhẹ, không muốn nạp toàn bộ công cụ IDE.
+5. Các hợp đồng chung giữa các dự án (như sự kiện tiến độ v1, đánh dấu bài học, hook sau khi ghi, nhãn nguồn tài liệu) nằm rải rác.
 
 Constellation hợp nhất toàn bộ cấu hình, kiểm tra và bảo trì vào một nguồn chân lý duy nhất.
 
@@ -55,10 +58,20 @@ Constellation hợp nhất toàn bộ cấu hình, kiểm tra và bảo trì và
 
 ## Nguyên tắc hoạt động
 
-1. **Không bao giờ làm mất cấu hình**: Tạo bản sao lưu xoay vòng (`<file>.bak.constellation`) trước mỗi lần ghi. Ghi tệp nguyên tử (atomic write), giữ nguyên định dạng xuống dòng (`CRLF`/`LF`) và thụt lề 2 khoảng trắng. Chỉ chỉnh sửa các mục do Constellation quản lý.
+1. **Không bao giờ làm mất cấu hình**: Tạo bản sao lưu xoay vòng (`<file>.bak.constellation`) trước thay đổi đầu tiên của phiên chạy, giúp toàn bộ thao tác có thể khôi phục hoàn toàn. Mỗi tệp cấu hình được ghi tối đa 1 lần mỗi lần chạy. Ghi tệp nguyên tử (atomic write), giữ nguyên định dạng xuống dòng (`CRLF`/`LF`) và thụt lề 2 khoảng trắng.
 2. **Không làm rò rỉ khóa bảo mật**: Các biến môi trường chứa từ khóa `/KEY|TOKEN|SECRET|PASSWORD|AUTH/i` luôn được ẩn thành `"***"` trong mọi đầu ra và bản so sánh diff. Manifest chỉ lưu tham chiếu (`${secret:NAME}`).
 3. **Bất biến và minh bạch (Idempotent)**: Mọi lệnh ghi đều hỗ trợ chế độ chạy thử (`--dry-run`) hiển thị chính xác nội dung thay đổi trước khi áp dụng.
 4. **Kỷ luật Toolchain**: Viết bằng TypeScript, đóng gói thành một tệp duy nhất (`dist/constellation.mjs`) sử dụng toolchain bên ngoài (`CONSTELLATION_TOOLCHAIN`), không tạo thư mục `node_modules` trên ổ đĩa exFAT.
+
+---
+
+## Các Agent được hỗ trợ
+
+- **Claude Code** (`claude`): Gọi CLI `claude mcp add` / `claude mcp remove`; kiểm tra và đồng bộ `~/.claude.json`.
+- **Google Antigravity** (`antigravity`): Đồng bộ 3 bản sao IDE/GUI (`~/.gemini/antigravity`, `~/.gemini/config`, `~/.gemini/antigravity-ide`).
+- **Antigravity CLI** (`antigravity-cli`): Quản lý tệp `~/.gemini/antigravity-cli/mcp_config.json` cho subagent chạy nền (`mcp-agy`). Các manifest cũ chỉ ghi `"antigravity"` sẽ tự động trỏ đến các bản sao IDE; chạy `import` để cập nhật.
+- **Cursor IDE** (`cursor`): Quản lý `~/.cursor/mcp.json`.
+- **OpenAI Codex** (`codex`): Quản lý các bảng `[mcp_servers.<name>]` trong `~/.codex/config.toml`.
 
 ---
 
@@ -95,10 +108,10 @@ Thêm Constellation vào tệp cấu hình agent của bạn:
 |---|---|
 | `eco_status` | Bảng ma trận trạng thái đăng ký, độ đồng bộ và trạng thái Git của các máy chủ. |
 | `eco_import` | Quét cấu hình các agent hiện có và nạp vào `~/.constellation/ecosystem.json` với tham chiếu bảo mật. |
-| `eco_register` | Đăng ký các máy chủ từ manifest vào Claude Code, Antigravity, Cursor, Codex. |
+| `eco_register` | Đăng ký các máy chủ từ manifest vào Claude Code, Antigravity, Antigravity CLI, Cursor, Codex. |
 | `eco_unregister` | Hủy đăng ký an toàn máy chủ khỏi các agent được chỉ định. |
 | `eco_health` | Khởi động máy chủ qua stdio, bắt tay client, kiểm tra danh sách công cụ và đo độ trễ. |
-| `eco_doctor` | Phát hiện lệch cấu hình, đường dẫn tệp không tồn tại, lệch giữa các bản sao Antigravity. |
+| `eco_doctor` | Phát hiện lệch cấu hình, đường dẫn tệp không tồn tại, gom nhóm danh sách server chưa quản lý. |
 | `eco_update` | Cập nhật an toàn với `git pull --ff-only` trên cây mã nguồn sạch, chạy lệnh `build` và `test`. |
 | `eco_contracts` | Xem danh sách hợp đồng chung, xem tài liệu đặc tả và kiểm định tệp sự kiện tiến độ JSON/JSONL. |
 
@@ -138,6 +151,16 @@ node dist/constellation.mjs contracts validate aurora-progress-event.v1 contract
 2. [`learning-units`](contracts/learning-units/README.md): Quy chuẩn đánh dấu thư mục học tập (`course.json`, `deck.json`, `polaris/brief.json`) và quy tắc bảo vệ của SmartDrive.
 3. [`post-write-hook`](contracts/post-write-hook/README.md): Cơ chế thông báo cập nhật ngầm `smart-drive update <dir> --quiet`.
 4. [`source-labels`](contracts/source-labels/README.md): Quy ước nhãn tài liệu "Khóa học" / "Mở rộng" / "chưa xác minh".
+
+---
+
+## Lịch sử phiên bản
+
+- **0.1.1** (2026-10-11):
+  - **Sao lưu hoàn toàn khôi phục được**: Gom các thay đổi theo từng tệp cấu hình; mỗi tệp chỉ ghi tối đa 1 lần mỗi lần chạy và bản sao lưu (`*.bak.constellation`) lưu chính xác trạng thái trước khi chạy.
+  - **Tách riêng target agent Antigravity CLI**: Tách `antigravity-cli` (`~/.gemini/antigravity-cli/mcp_config.json`) khỏi `antigravity` (3 bản sao IDE) để hỗ trợ cấu hình subagent gọn nhẹ và không bị báo lệch cấu hình giả.
+  - **Báo cáo Doctor gọn gàng**: Gom các server chưa quản lý thành 1 dòng theo từng agent; thông báo rõ ràng khi manifest trống kèm gợi ý chạy `import`; giữ báo cáo lỗi lệch cấu hình chuẩn 1 dòng kèm cách khắc phục.
+- **0.1.0** (2026-10-11): Phát hành phiên bản đầu tiên với 9 MCP tools, CLI, đăng ký đa agent, kiểm tra sức khỏe stdio, chẩn đoán drift doctor, cập nhật an toàn và kiểm định hợp đồng dùng chung.
 
 ---
 

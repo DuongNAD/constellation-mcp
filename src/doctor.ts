@@ -16,6 +16,50 @@ export async function runDoctor(manifest: Manifest): Promise<DoctorReport> {
 
   const manifestServerNames = new Set(manifest.servers.map((s) => s.name));
 
+  // If manifest is empty, say so and suggest import
+  if (manifest.servers.length === 0) {
+    for (const agent of ALL_AGENTS) {
+      agentConfigsChecked += agent.getConfigPaths().filter((p) => existsSync(p)).length;
+
+      try {
+        const agentServers = await agent.readServers();
+        const unmanaged = Array.from(agentServers.keys()).sort();
+        if (unmanaged.length > 0) {
+          issues.push({
+            severity: "info",
+            category: "unmanaged",
+            agent: agent.displayName,
+            message: `${agent.displayName}: ${unmanaged.length} unmanaged: ${unmanaged.join(", ")}`,
+            fix: `Run 'eco_import' to add unmanaged servers to ecosystem.json`,
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const recommendations = [
+      "Manifest is empty. Run 'eco_import' (or 'constellation import') to discover and import existing servers from agent configs.",
+      "Antigravity note: Tools bind when a conversation starts. Open a new conversation 1-2 minutes after starting/restarting the app.",
+    ];
+
+    const summary = "Manifest is empty (0 servers configured). Run 'eco_import' to import servers from agent configs.";
+
+    return {
+      ok: true,
+      summary,
+      issues,
+      antigravityConsistent: true,
+      recommendations,
+      stats: {
+        manifestServers: 0,
+        agentConfigsChecked,
+        driftCount: 0,
+        missingPathsCount: 0,
+      },
+    };
+  }
+
   // 1. Check for duplicate server names in manifest
   const seenNames = new Set<string>();
   for (const server of manifest.servers) {
@@ -105,7 +149,7 @@ export async function runDoctor(manifest: Manifest): Promise<DoctorReport> {
 
     for (const server of manifest.servers) {
       // Check if server is configured for this agent
-      const targetAgents = server.agents ?? ["claude", "antigravity", "cursor", "codex"];
+      const targetAgents = server.agents ?? ["claude", "antigravity", "antigravity-cli", "cursor", "codex"];
       if (targetAgents.includes(agent.name)) {
         const agentIssues = await agent.checkDrift(server);
         for (const iss of agentIssues) {
@@ -120,20 +164,24 @@ export async function runDoctor(manifest: Manifest): Promise<DoctorReport> {
       }
     }
 
-    // 5. Detect unmanaged servers in agent configs
+    // 5. Detect unmanaged servers in agent configs (grouped into one line per agent)
     try {
       const agentServers = await agent.readServers();
+      const unmanaged: string[] = [];
       for (const name of agentServers.keys()) {
         if (!manifestServerNames.has(name)) {
-          issues.push({
-            severity: "info",
-            category: "unmanaged",
-            agent: agent.displayName,
-            server: name,
-            message: `Server '${name}' is registered in ${agent.displayName} but not managed in manifest`,
-            fix: `Run 'eco_import' to add unmanaged servers to ecosystem.json`,
-          });
+          unmanaged.push(name);
         }
+      }
+      if (unmanaged.length > 0) {
+        unmanaged.sort();
+        issues.push({
+          severity: "info",
+          category: "unmanaged",
+          agent: agent.displayName,
+          message: `${agent.displayName}: ${unmanaged.length} unmanaged: ${unmanaged.join(", ")}`,
+          fix: `Run 'eco_import' to add unmanaged servers to ecosystem.json`,
+        });
       }
     } catch {
       // ignore

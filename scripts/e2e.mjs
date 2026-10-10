@@ -78,9 +78,11 @@ mkdirSync(FAKE_CONSTELLATION, { recursive: true });
 const AG_DIR1 = join(FAKE_HOME, ".gemini", "antigravity");
 const AG_DIR2 = join(FAKE_HOME, ".gemini", "config");
 const AG_DIR3 = join(FAKE_HOME, ".gemini", "antigravity-ide");
+const AG_CLI_DIR = join(FAKE_HOME, ".gemini", "antigravity-cli");
 mkdirSync(AG_DIR1, { recursive: true });
 mkdirSync(AG_DIR2, { recursive: true });
 mkdirSync(AG_DIR3, { recursive: true });
+mkdirSync(AG_CLI_DIR, { recursive: true });
 
 const CURSOR_DIR = join(FAKE_HOME, ".cursor");
 mkdirSync(CURSOR_DIR, { recursive: true });
@@ -106,6 +108,7 @@ const agConfigCrlf = JSON.stringify(initialAgConfig, null, 2).replace(/\n/g, "\r
 writeFileSync(join(AG_DIR1, "mcp_config.json"), agConfigCrlf, "utf8");
 writeFileSync(join(AG_DIR2, "mcp_config.json"), agConfigCrlf, "utf8");
 writeFileSync(join(AG_DIR3, "mcp_config.json"), agConfigCrlf, "utf8");
+writeFileSync(join(AG_CLI_DIR, "mcp_config.json"), JSON.stringify({ mcpServers: {} }, null, 2) + "\n", "utf8");
 
 // 2. Initial Codex config.toml
 const initialCodexToml = `# Codex Configuration
@@ -118,12 +121,16 @@ args = ["legacy.js"]
 `;
 writeFileSync(join(CODEX_DIR, "config.toml"), initialCodexToml, "utf8");
 
-// 3. Initial Cursor config
+// 3. Initial Cursor config with legacy tools to test unmanaged grouping
 const initialCursorConfig = {
   mcpServers: {
-    "cursor_legacy": {
+    "cursor_tool_alpha": {
       command: "node",
-      args: ["cursor_legacy.js"],
+      args: ["alpha.js"],
+    },
+    "cursor_tool_beta": {
+      command: "node",
+      args: ["beta.js"],
     },
   },
 };
@@ -230,6 +237,7 @@ try {
   // Test server identification and instructions
   const info = client.getServerVersion();
   ok("server identifies itself as constellation", info?.name === "constellation", `${info?.name} ${info?.version}`);
+  ok("server version is 0.1.1", info?.version === "0.1.1", info?.version);
   const instructions = client.getInstructions() ?? "";
   ok("server sends instructions with workflow and rules", instructions.includes("Workflow:") && instructions.includes("Rules:"));
 
@@ -266,6 +274,14 @@ try {
   r = await call("eco_guide", { topic: "manifest" });
   ok("eco_guide manifest topic", !r.isError && textOf(r).includes("ecosystem.json"));
 
+  // Test doctor on empty manifest before import
+  r = await call("eco_doctor");
+  const emptyDoctorText = textOf(r);
+  ok(
+    "doctor reports empty manifest with import suggestion",
+    !r.isError && emptyDoctorText.includes("Manifest is empty (0 servers configured)") && emptyDoctorText.includes("eco_import"),
+  );
+
   // 2. eco_import: bootstrap manifest & verify secret reference + masking
   r = await call("eco_import");
   const importText = textOf(r);
@@ -285,7 +301,7 @@ try {
     "secret converted to reference",
   );
 
-  // 3. Add fake_server and broken_server to manifest
+  // 3. Add fake_server and broken_server to manifest (targeted at antigravity, NOT antigravity-cli)
   const manifestObj = JSON.parse(manifestContent);
   manifestObj.servers.push(
     {
@@ -315,22 +331,42 @@ try {
   const ag1AfterDryRun = readFileSync(ag1Path, "utf8");
   ok("dry_run leaves disk files untouched", ag1Before === ag1AfterDryRun);
 
-  // 5. eco_register apply
+  // 5. eco_register apply (registering 2 servers in one run)
   r = await call("eco_register");
   ok("eco_register apply succeeds", !r.isError && textOf(r).includes("Successfully updated configurations"));
 
-  // Check that rolling backups were created
+  // Check that rolling backup *.bak.constellation was created once and equals the original file before the run
   const ag1BackupPath = join(AG_DIR1, "mcp_config.json.bak.constellation");
   ok("rolling backup *.bak.constellation created for Antigravity", existsSync(ag1BackupPath));
+  const ag1BackupContent = readFileSync(ag1BackupPath, "utf8");
+  ok(
+    "Antigravity rolling backup is equal to original file before the run",
+    ag1BackupContent === agConfigCrlf,
+    "one backup per file per run",
+  );
 
   const codexBackupPath = join(CODEX_DIR, "config.toml.bak.constellation");
   ok("rolling backup created for Codex config.toml", existsSync(codexBackupPath));
+  const codexBackupContent = readFileSync(codexBackupPath, "utf8");
+  ok(
+    "Codex rolling backup is equal to original TOML file before the run",
+    codexBackupContent === initialCodexToml,
+  );
 
   // Check CRLF preserved in Antigravity
   const ag1After = readFileSync(ag1Path, "utf8");
   ok("Antigravity config preserves CRLF line endings", ag1After.includes("\r\n"));
   ok("Antigravity preserves unrelated server entry with secret", ag1After.includes("unrelated-secret-server") && ag1After.includes(FAKE_SECRET_VALUE));
   ok("Antigravity registered fake-test-server", ag1After.includes("fake-test-server"));
+  ok("Antigravity registered broken-test-server", ag1After.includes("broken-test-server"));
+
+  // Check that antigravity-cli config was NOT modified (server targeted at antigravity, not antigravity-cli)
+  const agCliPath = join(AG_CLI_DIR, "mcp_config.json");
+  const agCliContent = readFileSync(agCliPath, "utf8");
+  ok(
+    "server targeted at antigravity is not added to antigravity-cli file",
+    !agCliContent.includes("fake-test-server") && !agCliContent.includes("broken-test-server"),
+  );
 
   // Check Codex TOML preserved comments and general section
   const codexAfter = readFileSync(join(CODEX_DIR, "config.toml"), "utf8");
@@ -358,7 +394,31 @@ try {
   r = await call("eco_status");
   ok("eco_status outputs matrix table", !r.isError && textOf(r).includes("Constellation Ecosystem Status") && textOf(r).includes("fake-test-server"));
 
-  // 7. Drift detection in eco_doctor
+  // 7. Drift detection in eco_doctor & unmanaged grouping
+  // Add unmanaged servers in Cursor to verify grouping
+  const cursorFile = join(CURSOR_DIR, "mcp.json");
+  const cursorData = JSON.parse(readFileSync(cursorFile, "utf8"));
+  cursorData.mcpServers["extra_unmanaged_1"] = { command: "node", args: ["u1.js"] };
+  cursorData.mcpServers["extra_unmanaged_2"] = { command: "node", args: ["u2.js"] };
+  writeFileSync(cursorFile, JSON.stringify(cursorData, null, 2) + "\n", "utf8");
+
+  r = await call("eco_doctor");
+  const docTextWithUnmanaged = textOf(r);
+  ok(
+    "doctor groups unmanaged servers into one line per agent",
+    docTextWithUnmanaged.includes("Cursor IDE: 2 unmanaged: extra_unmanaged_1, extra_unmanaged_2"),
+    "grouped line found",
+  );
+  ok(
+    "doctor reports no drift for server not targeted at antigravity-cli",
+    !docTextWithUnmanaged.includes("Antigravity CLI config file") && !docTextWithUnmanaged.includes("missing in") && !docTextWithUnmanaged.includes("fake-test-server' is missing in"),
+  );
+
+  // Clean up extra unmanaged servers
+  delete cursorData.mcpServers["extra_unmanaged_1"];
+  delete cursorData.mcpServers["extra_unmanaged_2"];
+  writeFileSync(cursorFile, JSON.stringify(cursorData, null, 2) + "\n", "utf8");
+
   // Simulate hand-edited drift in Antigravity copy 2
   const ag2Path = join(AG_DIR2, "mcp_config.json");
   const ag2Data = JSON.parse(readFileSync(ag2Path, "utf8"));
@@ -424,7 +484,7 @@ try {
 
   // Version command
   const verOut = execFileSync(process.execPath, [cliBin, "version"], { env: testEnv, encoding: "utf8" }).trim();
-  ok("CLI version prints 0.1.0", verOut === "0.1.0");
+  ok("CLI version prints 0.1.1", verOut === "0.1.1");
 
   // Status command
   const statusOut = execFileSync(process.execPath, [cliBin, "status"], { env: testEnv, encoding: "utf8" });

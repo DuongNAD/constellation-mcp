@@ -66,24 +66,28 @@ Secrets Policy:
 
   agents: `# Supported Coding Agents
 
-Constellation manages registration across four coding agent environments:
+Constellation manages registration across five coding agent targets:
 
 1. Claude Code (\`claude\`):
    - Invokes \`claude mcp add --scope user\` / \`claude mcp remove\` CLI commands.
    - Inspects and synchronizes \`~/.claude.json\` as a reliable fallback.
 
 2. Google Antigravity (\`antigravity\`):
-   - Synchronizes managed entries across all Antigravity configuration files:
+   - Synchronizes managed entries across the 3 IDE/GUI Antigravity configuration files:
      * \`~/.gemini/antigravity/mcp_config.json\`
      * \`~/.gemini/config/mcp_config.json\`
      * \`~/.gemini/antigravity-ide/mcp_config.json\`
-     * \`~/.gemini/antigravity-cli/mcp_config.json\`
    - Preserves CRLF line endings, 2-space JSON indentation, and unmanaged servers.
 
-3. Cursor IDE (\`cursor\`):
+3. Antigravity CLI (\`antigravity-cli\`):
+   - Manages \`~/.gemini/antigravity-cli/mcp_config.json\` (used by mcp-agy subagents).
+   - Keeps headless subagent configurations decoupled and lightweight.
+   - Backwards compatibility: Existing manifests listing only "antigravity" target the IDE files; run 'eco_import' or edit entry to add "antigravity-cli".
+
+4. Cursor IDE (\`cursor\`):
    - Manages \`~/.cursor/mcp.json\` (\`mcpServers\` dictionary).
 
-4. OpenAI Codex (\`codex\`):
+5. OpenAI Codex (\`codex\`):
    - Manages \`~/.codex/config.toml\` (\`[mcp_servers.<name>]\` tables).
    - Minimal hand-written parser preserves other TOML sections and comments.`,
 

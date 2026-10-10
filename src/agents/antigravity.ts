@@ -1,7 +1,8 @@
 /**
- * Google Antigravity multi-config agent manager.
- * Keeps ~/.gemini/antigravity, ~/.gemini/config, ~/.gemini/antigravity-ide,
- * and ~/.gemini/antigravity-cli mcp_config.json in sync.
+ * Google Antigravity agent managers.
+ * - AntigravityAgentManager ("antigravity"): keeps ~/.gemini/antigravity, ~/.gemini/config,
+ *   and ~/.gemini/antigravity-ide mcp_config.json in sync.
+ * - AntigravityCliAgentManager ("antigravity-cli"): manages ~/.gemini/antigravity-cli/mcp_config.json.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,69 +21,62 @@ import {
   formatConfigDiff,
 } from "./base.js";
 
-export class AntigravityAgentManager implements AgentManager {
-  readonly name = "antigravity" as const;
-  readonly displayName = "Google Antigravity";
-
-  getConfigPaths(): string[] {
-    const home = getHomeDir();
-    const paths = [
-      join(home, ".gemini", "antigravity", "mcp_config.json"),
-      join(home, ".gemini", "config", "mcp_config.json"),
-      join(home, ".gemini", "antigravity-ide", "mcp_config.json"),
-    ];
-
-    const cliPath = join(home, ".gemini", "antigravity-cli", "mcp_config.json");
-    if (existsSync(cliPath)) {
-      paths.push(cliPath);
-    }
-    return paths;
-  }
-
-  getTargetConfigPaths(forWriting = false): string[] {
-    const paths = this.getConfigPaths();
-    if (forWriting) {
-      // If none of the directories exist, ensure at least the primary path is targeted
-      const existing = paths.filter((p) => existsSync(p));
-      return existing.length > 0 ? existing : [paths[0]!];
-    }
-    return paths;
-  }
-
-  private loadRawConfig(filePath: string): {
-    data: { mcpServers?: Record<string, AgentServerConfig>; [key: string]: unknown };
-    lineEnding: "\r\n" | "\n";
-    exists: boolean;
-  } {
-    if (!existsSync(filePath)) {
-      return {
-        data: { mcpServers: {} },
-        lineEnding: process.platform === "win32" ? "\r\n" : "\n",
-        exists: false,
-      };
-    }
-    try {
-      const content = readFileSync(filePath, "utf8");
-      const lineEnding = detectLineEnding(content);
-      const parsed = JSON.parse(content);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return { data: parsed, lineEnding, exists: true };
-      }
-    } catch {
-      // ignore
-    }
+function loadRawJsonConfig(filePath: string): {
+  data: { mcpServers?: Record<string, AgentServerConfig>; [key: string]: unknown };
+  lineEnding: "\r\n" | "\n";
+  exists: boolean;
+} {
+  if (!existsSync(filePath)) {
     return {
       data: { mcpServers: {} },
       lineEnding: process.platform === "win32" ? "\r\n" : "\n",
       exists: false,
     };
   }
+  try {
+    const content = readFileSync(filePath, "utf8");
+    const lineEnding = detectLineEnding(content);
+    const parsed = JSON.parse(content);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return { data: parsed, lineEnding, exists: true };
+    }
+  } catch {
+    // ignore
+  }
+  return {
+    data: { mcpServers: {} },
+    lineEnding: process.platform === "win32" ? "\r\n" : "\n",
+    exists: false,
+  };
+}
+
+export class AntigravityAgentManager implements AgentManager {
+  readonly name = "antigravity" as const;
+  readonly displayName = "Google Antigravity";
+
+  getConfigPaths(): string[] {
+    const home = getHomeDir();
+    return [
+      join(home, ".gemini", "antigravity", "mcp_config.json"),
+      join(home, ".gemini", "config", "mcp_config.json"),
+      join(home, ".gemini", "antigravity-ide", "mcp_config.json"),
+    ];
+  }
+
+  getTargetConfigPaths(forWriting = false): string[] {
+    const paths = this.getConfigPaths();
+    if (forWriting) {
+      const existing = paths.filter((p) => existsSync(p));
+      return existing.length > 0 ? existing : [paths[0]!];
+    }
+    return paths;
+  }
 
   async readServers(): Promise<Map<string, AgentServerConfig>> {
     const servers = new Map<string, AgentServerConfig>();
     for (const p of this.getConfigPaths()) {
       if (existsSync(p)) {
-        const { data } = this.loadRawConfig(p);
+        const { data } = loadRawJsonConfig(p);
         if (data.mcpServers && typeof data.mcpServers === "object") {
           for (const [name, cfg] of Object.entries(data.mcpServers)) {
             if (cfg && typeof cfg === "object" && cfg.command && Array.isArray(cfg.args)) {
@@ -97,25 +91,31 @@ export class AntigravityAgentManager implements AgentManager {
     return servers;
   }
 
-  async register(server: ServerEntry, dryRun: boolean): Promise<DiffEntry[]> {
+  async register(servers: ServerEntry | ServerEntry[], dryRun: boolean): Promise<DiffEntry[]> {
+    const serverList = Array.isArray(servers) ? servers : [servers];
     const diffs: DiffEntry[] = [];
     const targetPaths = this.getTargetConfigPaths(true);
 
     for (const filePath of targetPaths) {
-      const { data, lineEnding } = this.loadRawConfig(filePath);
+      const { data, lineEnding } = loadRawJsonConfig(filePath);
       const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
-      const existing = mcpServers[server.name];
-      const newConfig = buildServerEntryConfig(server, existing);
+      let fileChanged = false;
 
-      const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
-      diffs.push(diff);
+      for (const server of serverList) {
+        const existing = mcpServers[server.name];
+        const newConfig = buildServerEntryConfig(server, existing);
+        const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
+        diffs.push(diff);
 
-      if (!dryRun && diff.action !== "noop") {
+        if (diff.action !== "noop") {
+          fileChanged = true;
+          mcpServers[server.name] = newConfig;
+        }
+      }
+
+      if (!dryRun && fileChanged) {
         createRollingBackup(filePath);
-        data.mcpServers = {
-          ...mcpServers,
-          [server.name]: newConfig,
-        };
+        data.mcpServers = mcpServers;
         const rawJson = JSON.stringify(data, null, 2);
         const formatted = lineEnding === "\r\n" ? rawJson.replace(/\n/g, "\r\n") + "\r\n" : rawJson + "\n";
         atomicWriteFile(filePath, formatted);
@@ -125,32 +125,40 @@ export class AntigravityAgentManager implements AgentManager {
     return diffs;
   }
 
-  async unregister(serverName: string, dryRun: boolean): Promise<DiffEntry[]> {
+  async unregister(serverNames: string | string[], dryRun: boolean): Promise<DiffEntry[]> {
+    const namesList = Array.isArray(serverNames) ? serverNames : [serverNames];
     const diffs: DiffEntry[] = [];
     const targetPaths = this.getTargetConfigPaths(false);
 
     for (const filePath of targetPaths) {
       if (!existsSync(filePath)) continue;
-      const { data, lineEnding } = this.loadRawConfig(filePath);
+      const { data, lineEnding } = loadRawJsonConfig(filePath);
       const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
-      const existing = mcpServers[serverName];
+      let fileChanged = false;
 
-      if (!existing) {
-        diffs.push({
-          agent: this.displayName,
-          file: filePath,
-          action: "noop",
-          changes: [`Server '${serverName}' not present in ${filePath}`],
-        });
-        continue;
+      for (const serverName of namesList) {
+        const existing = mcpServers[serverName];
+        if (!existing) {
+          diffs.push({
+            agent: this.displayName,
+            file: filePath,
+            action: "noop",
+            changes: [`Server '${serverName}' not present in ${filePath}`],
+          });
+          continue;
+        }
+
+        const diff = formatConfigDiff(this.displayName, filePath, serverName, existing, undefined);
+        diffs.push(diff);
+
+        if (diff.action !== "noop") {
+          fileChanged = true;
+          delete mcpServers[serverName];
+        }
       }
 
-      const diff = formatConfigDiff(this.displayName, filePath, serverName, existing, undefined);
-      diffs.push(diff);
-
-      if (!dryRun) {
+      if (!dryRun && fileChanged) {
         createRollingBackup(filePath);
-        delete mcpServers[serverName];
         data.mcpServers = mcpServers;
         const rawJson = JSON.stringify(data, null, 2);
         const formatted = lineEnding === "\r\n" ? rawJson.replace(/\n/g, "\r\n") + "\r\n" : rawJson + "\n";
@@ -180,7 +188,7 @@ export class AntigravityAgentManager implements AgentManager {
     // Check each file against manifest
     const fileConfigs = new Map<string, AgentServerConfig | undefined>();
     for (const p of paths) {
-      const { data } = this.loadRawConfig(p);
+      const { data } = loadRawJsonConfig(p);
       const cfg = data.mcpServers?.[server.name];
       fileConfigs.set(p, cfg);
 
@@ -234,4 +242,175 @@ export class AntigravityAgentManager implements AgentManager {
   }
 }
 
+export class AntigravityCliAgentManager implements AgentManager {
+  readonly name = "antigravity-cli" as const;
+  readonly displayName = "Antigravity CLI";
+
+  getConfigFile(): string {
+    const home = getHomeDir();
+    return join(home, ".gemini", "antigravity-cli", "mcp_config.json");
+  }
+
+  getConfigPaths(): string[] {
+    return [this.getConfigFile()];
+  }
+
+  getTargetConfigPaths(forWriting = false): string[] {
+    const filePath = this.getConfigFile();
+    if (forWriting) {
+      return [filePath];
+    }
+    return existsSync(filePath) ? [filePath] : [];
+  }
+
+  async readServers(): Promise<Map<string, AgentServerConfig>> {
+    const servers = new Map<string, AgentServerConfig>();
+    const filePath = this.getConfigFile();
+    if (existsSync(filePath)) {
+      const { data } = loadRawJsonConfig(filePath);
+      if (data.mcpServers && typeof data.mcpServers === "object") {
+        for (const [name, cfg] of Object.entries(data.mcpServers)) {
+          if (cfg && typeof cfg === "object" && cfg.command && Array.isArray(cfg.args)) {
+            servers.set(name, cfg);
+          }
+        }
+      }
+    }
+    return servers;
+  }
+
+  async register(servers: ServerEntry | ServerEntry[], dryRun: boolean): Promise<DiffEntry[]> {
+    const serverList = Array.isArray(servers) ? servers : [servers];
+    const diffs: DiffEntry[] = [];
+    const filePath = this.getConfigFile();
+    const { data, lineEnding } = loadRawJsonConfig(filePath);
+    const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
+    let fileChanged = false;
+
+    for (const server of serverList) {
+      const existing = mcpServers[server.name];
+      const newConfig = buildServerEntryConfig(server, existing);
+      const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
+      diffs.push(diff);
+
+      if (diff.action !== "noop") {
+        fileChanged = true;
+        mcpServers[server.name] = newConfig;
+      }
+    }
+
+    if (!dryRun && fileChanged) {
+      createRollingBackup(filePath);
+      data.mcpServers = mcpServers;
+      const rawJson = JSON.stringify(data, null, 2);
+      const formatted = lineEnding === "\r\n" ? rawJson.replace(/\n/g, "\r\n") + "\r\n" : rawJson + "\n";
+      atomicWriteFile(filePath, formatted);
+    }
+
+    return diffs;
+  }
+
+  async unregister(serverNames: string | string[], dryRun: boolean): Promise<DiffEntry[]> {
+    const namesList = Array.isArray(serverNames) ? serverNames : [serverNames];
+    const diffs: DiffEntry[] = [];
+    const filePath = this.getConfigFile();
+
+    if (!existsSync(filePath)) {
+      for (const serverName of namesList) {
+        diffs.push({
+          agent: this.displayName,
+          file: filePath,
+          action: "noop",
+          changes: [`Server '${serverName}' not present in ${filePath}`],
+        });
+      }
+      return diffs;
+    }
+
+    const { data, lineEnding } = loadRawJsonConfig(filePath);
+    const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
+    let fileChanged = false;
+
+    for (const serverName of namesList) {
+      const existing = mcpServers[serverName];
+      if (!existing) {
+        diffs.push({
+          agent: this.displayName,
+          file: filePath,
+          action: "noop",
+          changes: [`Server '${serverName}' not present in ${filePath}`],
+        });
+        continue;
+      }
+
+      const diff = formatConfigDiff(this.displayName, filePath, serverName, existing, undefined);
+      diffs.push(diff);
+
+      if (diff.action !== "noop") {
+        fileChanged = true;
+        delete mcpServers[serverName];
+      }
+    }
+
+    if (!dryRun && fileChanged) {
+      createRollingBackup(filePath);
+      data.mcpServers = mcpServers;
+      const rawJson = JSON.stringify(data, null, 2);
+      const formatted = lineEnding === "\r\n" ? rawJson.replace(/\n/g, "\r\n") + "\r\n" : rawJson + "\n";
+      atomicWriteFile(filePath, formatted);
+    }
+
+    return diffs;
+  }
+
+  async checkDrift(server: ServerEntry): Promise<DoctorIssue[]> {
+    const issues: DoctorIssue[] = [];
+    const filePath = this.getConfigFile();
+
+    if (!existsSync(filePath)) {
+      issues.push({
+        severity: "warning",
+        category: "drift",
+        agent: this.displayName,
+        server: server.name,
+        file: filePath,
+        message: `Antigravity CLI config file ~/.gemini/antigravity-cli/mcp_config.json not found`,
+        fix: `Run 'eco_register' or 'constellation register ${server.name}'`,
+      });
+      return issues;
+    }
+
+    const { data } = loadRawJsonConfig(filePath);
+    const cfg = data.mcpServers?.[server.name];
+
+    if (!cfg) {
+      issues.push({
+        severity: "error",
+        category: "drift",
+        agent: this.displayName,
+        server: server.name,
+        file: filePath,
+        message: `Server '${server.name}' is missing in ${filePath}`,
+        fix: `Run 'eco_register' to sync Antigravity CLI config`,
+      });
+    } else {
+      const { matches, differences } = compareServerConfigs(server, cfg);
+      if (!matches) {
+        issues.push({
+          severity: "error",
+          category: "drift",
+          agent: this.displayName,
+          server: server.name,
+          file: filePath,
+          message: `Server '${server.name}' in ${filePath} differs from manifest: ${differences.join("; ")}`,
+          fix: `Run 'eco_register' to update agent config from manifest`,
+        });
+      }
+    }
+
+    return issues;
+  }
+}
+
 export const antigravityAgent = new AntigravityAgentManager();
+export const antigravityCliAgent = new AntigravityCliAgentManager();

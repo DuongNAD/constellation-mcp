@@ -2,7 +2,7 @@
  * Unified Agent Registry for Constellation MCP.
  */
 import { AgentName } from "../types.js";
-import { antigravityAgent } from "./antigravity.js";
+import { antigravityAgent, antigravityCliAgent } from "./antigravity.js";
 import { AgentManager } from "./base.js";
 import { claudeAgent } from "./claude.js";
 import { codexAgent } from "./codex.js";
@@ -17,6 +17,7 @@ export * from "./codex.js";
 export const ALL_AGENTS: AgentManager[] = [
   claudeAgent,
   antigravityAgent,
+  antigravityCliAgent,
   cursorAgent,
   codexAgent,
 ];
@@ -24,6 +25,7 @@ export const ALL_AGENTS: AgentManager[] = [
 export const AGENT_MAP: Record<AgentName, AgentManager> = {
   claude: claudeAgent,
   antigravity: antigravityAgent,
+  "antigravity-cli": antigravityCliAgent,
   cursor: cursorAgent,
   codex: codexAgent,
 };

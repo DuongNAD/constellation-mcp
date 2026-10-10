@@ -91,93 +91,113 @@ export class ClaudeAgentManager implements AgentManager {
     return servers;
   }
 
-  async register(server: ServerEntry, dryRun: boolean): Promise<DiffEntry[]> {
+  async register(servers: ServerEntry | ServerEntry[], dryRun: boolean): Promise<DiffEntry[]> {
+    const serverList = Array.isArray(servers) ? servers : [servers];
+    const diffs: DiffEntry[] = [];
     const filePath = this.getConfigFile();
     const { data, lineEnding } = this.loadRawConfigFile();
     const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
-    const existing = mcpServers[server.name];
-    const newConfig = buildServerEntryConfig(server, existing);
-
-    const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
-
-    if (dryRun || diff.action === "noop") {
-      return [diff];
-    }
-
-    // Try CLI command if available / configured
     const claudeCmd = this.getClaudeCommand();
-    let cliExecuted = false;
-    if (claudeCmd) {
-      try {
-        const args = [...claudeCmd.baseArgs, "mcp", "add", "--scope", "user", server.name, server.command, ...server.args];
-        if (newConfig.env) {
-          for (const [k, v] of Object.entries(newConfig.env)) {
-            args.push("-e", `${k}=${v}`);
+    let fileChangedFallback = false;
+
+    for (const server of serverList) {
+      const existing = mcpServers[server.name];
+      const newConfig = buildServerEntryConfig(server, existing);
+      const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
+      diffs.push(diff);
+
+      if (dryRun || diff.action === "noop") {
+        continue;
+      }
+
+      let cliExecuted = false;
+      if (claudeCmd) {
+        try {
+          const args = [...claudeCmd.baseArgs, "mcp", "add", "--scope", "user", server.name, server.command, ...server.args];
+          if (newConfig.env) {
+            for (const [k, v] of Object.entries(newConfig.env)) {
+              args.push("-e", `${k}=${v}`);
+            }
           }
+          execFileSync(claudeCmd.cmd, args, { stdio: "pipe" });
+          cliExecuted = true;
+        } catch {
+          // Fallback to direct file update
         }
-        execFileSync(claudeCmd.cmd, args, { stdio: "pipe" });
-        cliExecuted = true;
-      } catch (e) {
-        // Fallback to direct file update if CLI is not present or failed
+      }
+
+      if (!cliExecuted) {
+        fileChangedFallback = true;
+        mcpServers[server.name] = newConfig;
       }
     }
 
-    // Direct JSON file update
-    createRollingBackup(filePath);
-    data.mcpServers = {
-      ...mcpServers,
-      [server.name]: newConfig,
-    };
-    const rawJson = JSON.stringify(data, null, 2);
-    const formatted = lineEnding === "\r\n" ? rawJson.replace(/\n/g, "\r\n") + "\r\n" : rawJson + "\n";
-    atomicWriteFile(filePath, formatted);
-
-    return [diff];
-  }
-
-  async unregister(serverName: string, dryRun: boolean): Promise<DiffEntry[]> {
-    const filePath = this.getConfigFile();
-    const { data, lineEnding, exists } = this.loadRawConfigFile();
-    const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
-    const existing = mcpServers[serverName];
-
-    if (!existing && !exists) {
-      return [
-        {
-          agent: this.displayName,
-          file: filePath,
-          action: "noop",
-          changes: [`Server '${serverName}' not present in Claude config`],
-        },
-      ];
-    }
-
-    const diff = formatConfigDiff(this.displayName, filePath, serverName, existing, undefined);
-
-    if (dryRun || diff.action === "noop") {
-      return [diff];
-    }
-
-    const claudeCmd = this.getClaudeCommand();
-    if (claudeCmd) {
-      try {
-        const args = [...claudeCmd.baseArgs, "mcp", "remove", "--scope", "user", serverName];
-        execFileSync(claudeCmd.cmd, args, { stdio: "pipe" });
-      } catch {
-        // Fallback to direct file update
-      }
-    }
-
-    if (exists && existing) {
+    if (!dryRun && fileChangedFallback) {
       createRollingBackup(filePath);
-      delete mcpServers[serverName];
       data.mcpServers = mcpServers;
       const rawJson = JSON.stringify(data, null, 2);
       const formatted = lineEnding === "\r\n" ? rawJson.replace(/\n/g, "\r\n") + "\r\n" : rawJson + "\n";
       atomicWriteFile(filePath, formatted);
     }
 
-    return [diff];
+    return diffs;
+  }
+
+  async unregister(serverNames: string | string[], dryRun: boolean): Promise<DiffEntry[]> {
+    const namesList = Array.isArray(serverNames) ? serverNames : [serverNames];
+    const diffs: DiffEntry[] = [];
+    const filePath = this.getConfigFile();
+    const { data, lineEnding, exists } = this.loadRawConfigFile();
+    const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
+    const claudeCmd = this.getClaudeCommand();
+    let fileChangedFallback = false;
+
+    for (const serverName of namesList) {
+      const existing = mcpServers[serverName];
+
+      if (!existing && !exists) {
+        diffs.push({
+          agent: this.displayName,
+          file: filePath,
+          action: "noop",
+          changes: [`Server '${serverName}' not present in Claude config`],
+        });
+        continue;
+      }
+
+      const diff = formatConfigDiff(this.displayName, filePath, serverName, existing, undefined);
+      diffs.push(diff);
+
+      if (dryRun || diff.action === "noop") {
+        continue;
+      }
+
+      let cliExecuted = false;
+      if (claudeCmd) {
+        try {
+          const args = [...claudeCmd.baseArgs, "mcp", "remove", "--scope", "user", serverName];
+          execFileSync(claudeCmd.cmd, args, { stdio: "pipe" });
+          cliExecuted = true;
+        } catch {
+          // Fallback to direct file update
+        }
+      }
+
+      if (!cliExecuted && exists && existing) {
+        fileChangedFallback = true;
+        delete mcpServers[serverName];
+      }
+    }
+
+    if (!dryRun && fileChangedFallback && exists) {
+      createRollingBackup(filePath);
+      data.mcpServers = mcpServers;
+      const rawJson = JSON.stringify(data, null, 2);
+      const formatted = lineEnding === "\r\n" ? rawJson.replace(/\n/g, "\r\n") + "\r\n" : rawJson + "\n";
+      atomicWriteFile(filePath, formatted);
+    }
+
+    return diffs;
   }
 
   async checkDrift(server: ServerEntry): Promise<DoctorIssue[]> {

@@ -20,8 +20,9 @@ contracts between projects (progress event v1, learning-unit markers, the post-w
 described separately in three READMEs. Constellation makes all of that one source of truth with one command.
 
 ## Principles
-1. Never lose a config: back up before writing (one rolling backup per file, `*.bak.constellation`), write
-   atomically, keep each file's line endings and indentation, change only the entries it manages.
+1. Never lose a config: back up before writing (one rolling backup per file per run, `*.bak.constellation`, preserving
+   the state before the run's first change), write atomically, keep each file's line endings and indentation, change
+   only the entries it manages. Write each config file at most once per run.
 2. Never leak secrets: env values whose name contains KEY, TOKEN, SECRET, PASSWORD or AUTH are masked in every output
    and are never copied into the manifest or the repository; existing env blocks in agent configs are preserved.
 3. Idempotent and explainable: every write has a dry run that prints the exact diff; re-running changes nothing.
@@ -33,32 +34,36 @@ described separately in three READMEs. Constellation makes all of that one sourc
 User manifest at ~/.constellation/ecosystem.json (path override CONSTELLATION_HOME); a documented example in the repo
 (examples/ecosystem.example.json, with no secrets). Entry:
 `{name, description, repo?, path?, transport: "stdio", command, args, env?: {NAME: "${secret:NAME}" or plain non-secret
-value}, agents: ["claude", "antigravity", "cursor", "codex"], build?, test?, health?: {timeoutMs}}`.
+value}, agents: ["claude", "antigravity", "antigravity-cli", "cursor", "codex"], build?, test?, health?: {timeoutMs}}`.
 Secrets: `${secret:NAME}` references resolve from the process environment or ~/.constellation/secrets.json (never in
 the repo); when importing, secret values found in agent configs are not copied: the entry keeps the reference and the
 agent config keeps its value.
 
 ## Agents (targets)
-- Claude Code: through the `claude mcp` CLI (`add --scope user`, `remove`, `get`, `list`), command from
+- Claude Code (`claude`): through the `claude mcp` CLI (`add --scope user`, `remove`, `get`, `list`), command from
   CONSTELLATION_CLAUDE_CMD or `claude` on PATH; fallback, read-only inspection of ~/.claude.json.
-- Antigravity: the JSON files ~/.gemini/antigravity/mcp_config.json, ~/.gemini/config/mcp_config.json,
-  ~/.gemini/antigravity-ide/mcp_config.json (and ~/.gemini/antigravity-cli/mcp_config.json when it exists); all kept in
-  sync for managed entries; unmanaged entries untouched.
-- Cursor: ~/.cursor/mcp.json. Codex: ~/.codex/config.toml ([mcp_servers.<name>] tables; minimal, careful TOML edits).
+- Antigravity IDE (`antigravity`): the JSON files ~/.gemini/antigravity/mcp_config.json, ~/.gemini/config/mcp_config.json,
+  ~/.gemini/antigravity-ide/mcp_config.json; all 3 kept in sync for managed entries; unmanaged entries untouched.
+- Antigravity CLI (`antigravity-cli`): ~/.gemini/antigravity-cli/mcp_config.json; used specifically by mcp-agy subagents
+  so headless subagent configs remain decoupled and lightweight. Existing manifests listing only "antigravity" target
+  the IDE files until `import` is run again or entries are edited.
+- Cursor (`cursor`): ~/.cursor/mcp.json.
+- Codex (`codex`): ~/.codex/config.toml ([mcp_servers.<name>] tables; minimal, careful TOML edits).
 - Paths resolve from the user's home (USERPROFILE / HOME) so tests can point them at a temp folder.
 Reference for config formats and edge cases (read only): SmartDrive-OS smart_drive/mcp/registrar.py.
 
-## Tools (v0.1) and CLI
+## Tools and CLI
 - `eco_status`: one table: each server, which agents have it (and whether the entry matches the manifest), last
   health result, repo state (branch, dirty, ahead/behind) when `path` is a git repo.
 - `eco_import {dry_run?}`: bootstrap or refresh the manifest from the existing agent configs (union, de-duplicated,
-  secrets turned into references).
-- `eco_register {servers?, agents?, dry_run?}` and `eco_unregister {server, agents?, dry_run?}`.
+  secrets turned into references; assigns `antigravity-cli` only to servers found in that file).
+- `eco_register {servers?, agents?, dry_run?}` and `eco_unregister {server, agents?, dry_run?}`: collects all changes
+  per file and writes each file at most once with a single pre-run backup.
 - `eco_health {servers?}`: start each server over stdio with the MCP SDK client, initialize, list tools; report
   start-up time, server name/version, tool count, errors; time-boxed; servers are stopped afterwards.
 - `eco_doctor`: drift between agent configs and the manifest (including the Antigravity copies), entries whose command
-  or script path does not exist, duplicate names, servers present in agents but not in the manifest, and the
-  Antigravity note (tools bind when a conversation starts; open a new conversation 1-2 minutes after the app starts).
+  or script path does not exist, duplicate names, grouped unmanaged servers (one line per agent), clean notice when
+  manifest is empty suggesting `import`, and the Antigravity note (tools bind when a conversation starts).
 - `eco_update {servers?, pull?, build?, test?}`: for git-backed servers: `git pull --ff-only` only when the tree is
   clean, then the manifest's build and test commands; never force, never reset; report each step.
 - `eco_contracts {action: list | show | validate, name?, file?}`: the shared contracts (below); validate a JSONL or JSON
@@ -84,13 +89,17 @@ contracts/, examples/, guide/GUIDE.md, scripts/build.mjs, scripts/e2e.mjs, READM
 (Vietnamese) with the ecosystem map, LICENSE (MIT).
 
 ## Tests (e2e, all under %TEMP%)
-A fake home with the four agent config locations (Antigravity files with CRLF and an unrelated server whose env
-holds a fake secret), a fake `claude` command that logs its arguments, and a tiny fake MCP server script. Checks:
-import masks and references the secret; register is idempotent, keeps CRLF and unrelated entries, writes one rolling
-backup, and dry run changes nothing; drift detection finds a hand-edited Antigravity copy; health reports the fake
-server's tools and timing and a broken server's error; unregister removes only the managed entry; contracts validate
-the fixtures (valid passes, invalid fails with line numbers); no secret value appears in any output.
+A fake home with the agent config locations (Antigravity files with CRLF and an unrelated server whose env holds a
+fake secret, Antigravity CLI config, Codex TOML, Cursor, Claude), a fake `claude` command that logs its arguments,
+and fake MCP server scripts. Checks:
+- import masks and references the secret, assigns `antigravity-cli` only to servers present in CLI config;
+- register is idempotent, keeps CRLF and unrelated entries, writes each file once per run, and leaves a backup equal to the original file;
+- a server targeted at "antigravity" but not "antigravity-cli" is not added to the CLI file and the doctor reports no drift for it;
+- doctor groups unmanaged servers into one line per agent, and reports empty manifests cleanly;
+- health reports fake server tools and timing, broken server error;
+- unregister removes only the managed entry;
+- contracts validate valid/invalid fixtures with line numbers.
 
 ## Status
-- 2026-10-11: plan written; v0.1 built and verified with TypeScript typecheck, e2e integration tests, stdio health checks, drift doctor, and shared contract validation.
-
+- 2026-10-11: v0.1.1 released. Fixed backups to be fully reversible with single backup/write per run, split `antigravity-cli` agent target, compact doctor reports with grouped unmanaged servers and empty manifest handling.
+- 2026-10-11: v0.1.0 built and verified with TypeScript typecheck, e2e integration tests, stdio health checks, drift doctor, and shared contract validation.

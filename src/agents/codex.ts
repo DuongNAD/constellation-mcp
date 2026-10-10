@@ -233,106 +233,122 @@ export class CodexAgentManager implements AgentManager {
     }
   }
 
-  async register(server: ServerEntry, dryRun: boolean): Promise<DiffEntry[]> {
+  async register(servers: ServerEntry | ServerEntry[], dryRun: boolean): Promise<DiffEntry[]> {
+    const serverList = Array.isArray(servers) ? servers : [servers];
+    const diffs: DiffEntry[] = [];
     const filePath = this.getConfigFile();
     const existingServers = await this.readServers();
-    const existing = existingServers.get(server.name);
-    const newConfig = buildServerEntryConfig(server, existing);
-
-    const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
-
-    if (dryRun || diff.action === "noop") {
-      return [diff];
-    }
 
     const content = existsSync(filePath) ? readFileSync(filePath, "utf8") : "";
     const lineEnding = detectLineEnding(content);
-    const lines = content ? content.split(/\r?\n/) : [];
+    let lines = content ? content.split(/\r?\n/) : [];
+    let fileChanged = false;
 
-    const sectionRange = this.findServerSectionRange(lines, server.name);
-    const newSectionStr = this.serializeServerToml(server.name, newConfig);
-    const newSectionLines = newSectionStr.split("\n");
+    for (const server of serverList) {
+      const existing = existingServers.get(server.name);
+      const newConfig = buildServerEntryConfig(server, existing);
+      const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
+      diffs.push(diff);
 
-    let updatedLines: string[];
-    if (sectionRange) {
-      updatedLines = [
-        ...lines.slice(0, sectionRange.startLine),
-        ...newSectionLines,
-        ...lines.slice(sectionRange.endLine),
-      ];
-    } else {
-      if (lines.length > 0 && lines[lines.length - 1] !== "") {
-        updatedLines = [...lines, "", ...newSectionLines];
-      } else {
-        updatedLines = [...lines, ...newSectionLines];
+      if (diff.action !== "noop") {
+        fileChanged = true;
+        const sectionRange = this.findServerSectionRange(lines, server.name);
+        const newSectionStr = this.serializeServerToml(server.name, newConfig);
+        const newSectionLines = newSectionStr.split("\n");
+
+        if (sectionRange) {
+          lines = [
+            ...lines.slice(0, sectionRange.startLine),
+            ...newSectionLines,
+            ...lines.slice(sectionRange.endLine),
+          ];
+        } else {
+          if (lines.length > 0 && lines[lines.length - 1] !== "") {
+            lines = [...lines, "", ...newSectionLines];
+          } else {
+            lines = [...lines, ...newSectionLines];
+          }
+        }
+        existingServers.set(server.name, newConfig);
       }
     }
 
-    createRollingBackup(filePath);
-    const finalContent =
-      lineEnding === "\r\n"
-        ? updatedLines.join("\r\n") + "\r\n"
-        : updatedLines.join("\n") + "\n";
-    atomicWriteFile(filePath, finalContent);
+    if (!dryRun && fileChanged) {
+      createRollingBackup(filePath);
+      const finalContent =
+        lineEnding === "\r\n"
+          ? lines.join("\r\n") + "\r\n"
+          : lines.join("\n") + "\n";
+      atomicWriteFile(filePath, finalContent);
+    }
 
-    return [diff];
+    return diffs;
   }
 
-  async unregister(serverName: string, dryRun: boolean): Promise<DiffEntry[]> {
+  async unregister(serverNames: string | string[], dryRun: boolean): Promise<DiffEntry[]> {
+    const namesList = Array.isArray(serverNames) ? serverNames : [serverNames];
+    const diffs: DiffEntry[] = [];
     const filePath = this.getConfigFile();
+
     if (!existsSync(filePath)) {
-      return [
-        {
+      for (const serverName of namesList) {
+        diffs.push({
           agent: this.displayName,
           file: filePath,
           action: "noop",
           changes: [`Config file ${filePath} not found`],
-        },
-      ];
+        });
+      }
+      return diffs;
     }
 
     const content = readFileSync(filePath, "utf8");
     const lineEnding = detectLineEnding(content);
-    const lines = content.split(/\r?\n/);
-    const sectionRange = this.findServerSectionRange(lines, serverName);
+    let lines = content.split(/\r?\n/);
+    const existingServers = this.parseTomlServers(content);
+    let fileChanged = false;
 
-    if (!sectionRange) {
-      return [
-        {
+    for (const serverName of namesList) {
+      const sectionRange = this.findServerSectionRange(lines, serverName);
+      if (!sectionRange) {
+        diffs.push({
           agent: this.displayName,
           file: filePath,
           action: "noop",
           changes: [`Server '${serverName}' not found in ${filePath}`],
-        },
-      ];
+        });
+        continue;
+      }
+
+      const existing = existingServers.get(serverName);
+      const diff = formatConfigDiff(this.displayName, filePath, serverName, existing, undefined);
+      diffs.push(diff);
+
+      if (diff.action !== "noop") {
+        fileChanged = true;
+        lines = [
+          ...lines.slice(0, sectionRange.startLine),
+          ...lines.slice(sectionRange.endLine),
+        ];
+        existingServers.delete(serverName);
+      }
     }
 
-    const existingServers = this.parseTomlServers(content);
-    const existing = existingServers.get(serverName);
-    const diff = formatConfigDiff(this.displayName, filePath, serverName, existing, undefined);
+    if (!dryRun && fileChanged) {
+      // Trim trailing extra blank lines
+      while (lines.length > 0 && lines[lines.length - 1] === "") {
+        lines.pop();
+      }
 
-    if (dryRun || diff.action === "noop") {
-      return [diff];
+      createRollingBackup(filePath);
+      const finalContent =
+        lineEnding === "\r\n"
+          ? lines.join("\r\n") + "\r\n"
+          : lines.join("\n") + "\n";
+      atomicWriteFile(filePath, finalContent);
     }
 
-    createRollingBackup(filePath);
-    const updatedLines = [
-      ...lines.slice(0, sectionRange.startLine),
-      ...lines.slice(sectionRange.endLine),
-    ];
-
-    // Trim trailing extra blank lines
-    while (updatedLines.length > 0 && updatedLines[updatedLines.length - 1] === "") {
-      updatedLines.pop();
-    }
-
-    const finalContent =
-      lineEnding === "\r\n"
-        ? updatedLines.join("\r\n") + "\r\n"
-        : updatedLines.join("\n") + "\n";
-    atomicWriteFile(filePath, finalContent);
-
-    return [diff];
+    return diffs;
   }
 
   async checkDrift(server: ServerEntry): Promise<DoctorIssue[]> {

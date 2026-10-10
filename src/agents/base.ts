@@ -9,8 +9,8 @@ export interface AgentManager {
   readonly displayName: string;
   getConfigPaths(): string[];
   readServers(): Promise<Map<string, AgentServerConfig>>;
-  register(server: ServerEntry, dryRun: boolean): Promise<DiffEntry[]>;
-  unregister(serverName: string, dryRun: boolean): Promise<DiffEntry[]>;
+  register(servers: ServerEntry | ServerEntry[], dryRun: boolean): Promise<DiffEntry[]>;
+  unregister(serverNames: string | string[], dryRun: boolean): Promise<DiffEntry[]>;
   checkDrift(server: ServerEntry): Promise<DoctorIssue[]>;
 }
 

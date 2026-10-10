@@ -2,7 +2,7 @@
  * Core type definitions for Constellation MCP.
  */
 
-export type AgentName = "claude" | "antigravity" | "cursor" | "codex";
+export type AgentName = "claude" | "antigravity" | "antigravity-cli" | "cursor" | "codex";
 
 export interface ServerHealthConfig {
   timeoutMs?: number;
