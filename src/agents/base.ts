@@ -42,6 +42,17 @@ export function buildServerEntryConfig(
   return result;
 }
 
+/** `type: "stdio"` is the default transport; Claude Code writes it, other agents and the manifest omit it. */
+function comparable(entry: object): Record<string, unknown> {
+  const { type, ...rest } = entry as Record<string, unknown>;
+  return type === undefined || type === "stdio" ? rest : { type, ...rest };
+}
+
+/** An empty env block and a missing one mean the same thing to every agent. */
+function normalizeEnv(env: Record<string, string> | undefined): Record<string, string> | undefined {
+  return env && Object.keys(env).length > 0 ? env : undefined;
+}
+
 export function compareServerConfigs(
   manifestServer: ServerEntry,
   agentServer: AgentServerConfig,
@@ -89,7 +100,7 @@ export function formatConfigDiff(
   if (!before && after) {
     const maskedAfter = {
       ...after,
-      env: maskSecretsInEnv(after.env),
+      env: normalizeEnv(maskSecretsInEnv(after.env)),
     };
     changes.push(`+ Add server '${serverName}': ${JSON.stringify(maskedAfter)}`);
     return {
@@ -104,7 +115,7 @@ export function formatConfigDiff(
   if (before && !after) {
     const maskedBefore = {
       ...before,
-      env: maskSecretsInEnv(before.env),
+      env: normalizeEnv(maskSecretsInEnv(before.env)),
     };
     changes.push(`- Remove server '${serverName}'`);
     return {
@@ -119,14 +130,14 @@ export function formatConfigDiff(
   if (before && after) {
     const maskedBefore = {
       ...before,
-      env: maskSecretsInEnv(before.env),
+      env: normalizeEnv(maskSecretsInEnv(before.env)),
     };
     const maskedAfter = {
       ...after,
-      env: maskSecretsInEnv(after.env),
+      env: normalizeEnv(maskSecretsInEnv(after.env)),
     };
 
-    if (deepEqual(maskedBefore, maskedAfter)) {
+    if (deepEqual(comparable(maskedBefore), comparable(maskedAfter))) {
       return {
         agent: agentName,
         file: filePath,

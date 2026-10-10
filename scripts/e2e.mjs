@@ -344,6 +344,16 @@ try {
   r = await call("eco_register");
   ok("eco_register is idempotent (no changes on rerun)", !r.isError && textOf(r).includes("All agent configurations are already up to date"));
 
+  // Real Claude Code entries carry "type": "stdio" and an empty env block; neither is a difference.
+  const claudePath = join(FAKE_HOME, ".claude.json");
+  const claudeData = JSON.parse(readFileSync(claudePath, "utf8"));
+  for (const entry of Object.values(claudeData.mcpServers)) Object.assign(entry, { type: "stdio", env: {} });
+  writeFileSync(claudePath, JSON.stringify(claudeData, null, 2) + String.fromCharCode(10), "utf8");
+  r = await call("eco_register", { dry_run: true });
+  const claudeParts = textOf(r).split("[Claude Code]").slice(1);
+  const claudeUpdates = claudeParts.filter((part) => part.split("[Google")[0].split("[Cursor")[0].split("[OpenAI")[0].includes("~ Update"));
+  ok("type stdio and empty env in Claude entries are not reported as changes", !r.isError && claudeUpdates.length === 0, claudeUpdates.length + " Claude update(s)");
+
   // 6. eco_status
   r = await call("eco_status");
   ok("eco_status outputs matrix table", !r.isError && textOf(r).includes("Constellation Ecosystem Status") && textOf(r).includes("fake-test-server"));
