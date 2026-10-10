@@ -1,0 +1,101 @@
+{
+  "version": "1",
+  "servers": [
+    {
+      "name": "aurora-slides",
+      "description": "Apple keynote-style presentations and interactive study decks with memory palaces and progress events",
+      "repo": "https://github.com/DuongNAD/aurora-slides-mcp",
+      "path": "D:/03_Development_Projects/Slide_Projects/my_projects/aurora_slides_mcp",
+      "transport": "stdio",
+      "command": "node",
+      "args": [
+        "D:/03_Development_Projects/Slide_Projects/my_projects/aurora_slides_mcp/dist/aurora.mjs"
+      ],
+      "agents": [
+        "claude",
+        "antigravity",
+        "cursor",
+        "codex"
+      ],
+      "build": "node scripts/build.mjs",
+      "test": "node scripts/e2e.mjs",
+      "health": {
+        "timeoutMs": 20000
+      }
+    },
+    {
+      "name": "polaris",
+      "description": "Evidence-based personal study course architect: research, quality gates, scheduling, task sync, and spaced retention",
+      "repo": "https://github.com/DuongNAD/polaris-mcp",
+      "path": "D:/03_Development_Projects/ai_agents/polaris_mcp",
+      "transport": "stdio",
+      "command": "node",
+      "args": [
+        "D:/03_Development_Projects/ai_agents/polaris_mcp/dist/polaris.mjs"
+      ],
+      "agents": [
+        "claude",
+        "antigravity",
+        "cursor",
+        "codex"
+      ],
+      "build": "node scripts/build.mjs",
+      "test": "node scripts/e2e.mjs",
+      "health": {
+        "timeoutMs": 20000
+      }
+    },
+    {
+      "name": "smart-drive",
+      "description": "SSD workspace governance, fast BM25/vector learning search, deduplication, and index maintenance",
+      "repo": "https://github.com/DuongNAD/smart-drive-os",
+      "path": "D:/teamwork_projects/smart_drive_os",
+      "transport": "stdio",
+      "command": "python",
+      "args": [
+        "-m",
+        "smart_drive",
+        "mcp"
+      ],
+      "env": {
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
+      },
+      "agents": [
+        "claude",
+        "antigravity",
+        "cursor",
+        "codex"
+      ],
+      "test": "pytest tests/",
+      "health": {
+        "timeoutMs": 20000
+      }
+    },
+    {
+      "name": "mcp-agy",
+      "description": "Google Antigravity delegation gateway for headless coding subagents",
+      "transport": "stdio",
+      "command": "python",
+      "args": [
+        "-m",
+        "mcp_agy.cli",
+        "--transport",
+        "stdio",
+        "--no-banner"
+      ],
+      "env": {
+        "ANTIGRAVITY_API_KEY": "${secret:ANTIGRAVITY_API_KEY}"
+      },
+      "agents": [
+        "claude",
+        "antigravity",
+        "cursor",
+        "codex"
+      ],
+      "health": {
+        "timeoutMs": 20000
+      }
+    }
+  ]
+}

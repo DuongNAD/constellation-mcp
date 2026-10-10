@@ -1,0 +1,169 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AuroraLearningProgressEventV1",
+  "description": "JSON Schema for Aurora Slides interactive learning events (v1).",
+  "type": "object",
+  "required": [
+    "v",
+    "t",
+    "deck",
+    "slide",
+    "type"
+  ],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1,
+      "description": "Contract schema version (always 1)"
+    },
+    "t": {
+      "type": "string",
+      "description": "ISO 8601 timestamp"
+    },
+    "course": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Course identifier or slug"
+    },
+    "lesson": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Lesson directory name or slug"
+    },
+    "deck": {
+      "type": "string",
+      "description": "Slide deck name or slug"
+    },
+    "slide": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "0-based index of the slide"
+    },
+    "slideId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Optional unique slide identifier"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "quiz",
+        "predict",
+        "recall",
+        "complete"
+      ],
+      "description": "Event category"
+    },
+    "question": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Quiz question prompt"
+    },
+    "chosen": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "0-based indices of options chosen by the learner"
+    },
+    "chosenText": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 160
+      },
+      "description": "Option texts chosen by the learner"
+    },
+    "answer": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "0-based indices of correct options"
+    },
+    "answerText": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 160
+      },
+      "description": "Correct option texts"
+    },
+    "explanation": {
+      "type": "string",
+      "maxLength": 300,
+      "description": "Explanation for the correct answer"
+    },
+    "correct": {
+      "type": "boolean",
+      "description": "Whether the learner answered correctly"
+    },
+    "title": {
+      "type": "string",
+      "description": "Title of the prediction challenge"
+    },
+    "prediction": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Learner typed prediction text"
+    },
+    "rating": {
+      "type": "string",
+      "enum": [
+        "right",
+        "different",
+        "got",
+        "missed"
+      ],
+      "description": "Self-evaluation rating"
+    },
+    "output": {
+      "type": "string",
+      "maxLength": 300,
+      "description": "Actual terminal output snippet"
+    },
+    "palace": {
+      "type": "string",
+      "description": "Memory palace identifier"
+    },
+    "station": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "0-based index of the palace station"
+    },
+    "place": {
+      "type": "string",
+      "description": "Location name in the memory palace"
+    },
+    "item": {
+      "type": "string",
+      "description": "Idea / item associated with the station"
+    },
+    "slides": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total slide count in the deck"
+    },
+    "quiz": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Summary quiz score (e.g. '4/5')"
+    },
+    "predictions": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Summary prediction accuracy (e.g. '2/3')"
+    }
+  },
+  "additionalProperties": true
+}

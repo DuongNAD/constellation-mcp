@@ -92,4 +92,5 @@ server's tools and timing and a broken server's error; unregister removes only t
 the fixtures (valid passes, invalid fails with line numbers); no secret value appears in any output.
 
 ## Status
-- 2026-10-11: plan written; v0.1 to be built.
+- 2026-10-11: plan written; v0.1 built and verified with TypeScript typecheck, e2e integration tests, stdio health checks, drift doctor, and shared contract validation.
+

@@ -1,0 +1,24 @@
+{
+  "name": "constellation-mcp",
+  "version": "0.1.0",
+  "description": "Control plane of the learner's MCP ecosystem: registration, health, drift doctor, safe updates, and shared contracts.",
+  "type": "module",
+  "main": "dist/constellation.mjs",
+  "bin": {
+    "constellation": "dist/constellation.mjs"
+  },
+  "engines": {
+    "node": ">=22.4"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check",
+    "test": "node scripts/e2e.mjs"
+  },
+  "author": "DuongNAD (https://github.com/DuongNAD)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DuongNAD/constellation-mcp"
+  }
+}
