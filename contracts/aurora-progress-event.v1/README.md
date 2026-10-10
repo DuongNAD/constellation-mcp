@@ -1,9 +1,9 @@
 # Contract: `aurora-progress-event.v1`
 
 ## Purpose
-The `aurora-progress-event.v1` contract defines the JSON Lines (`progress.jsonl`) data exchange format between **Aurora Slides** (the presentation and self-study runtime) and **Polaris** (the evidence-based course architect and spaced review scheduler).
-
-Whenever a learner interacts with active recall slides (quizzes, predict-then-run terminals, memory palace walks, or deck completions), Aurora emits an event matching this specification. Polaris reads these events to update the learner's Error Log (*"Sổ lỗi"*) and calculate spaced repetition review dates (`D+1`, `D+3`, `D+7`, `D+16`, `D+35`).
+The `aurora-progress-event.v1` contract defines the JSON Lines (`progress.jsonl`) data exchange format between **Aurora Slides** (the presentation and self-study runtime) and consumers in the ecosystem:
+- **Polaris** (the evidence-based course architect and spaced review scheduler): reads quiz, predict, recall, and complete events to update the learner's Error Log (*"Sổ lỗi"*) and calculate spaced repetition review dates (`D+1`, `D+3`, `D+7`, `D+16`, `D+35`).
+- **Vega** ([vega-mcp](https://github.com/DuongNAD/vega-mcp), the FSRS memory engine): reads active recall flashcard review events (`type: "card"`) via `vega_sync` to compute FSRS card stability, difficulty, and interval. Polaris ignores the `card` event type.
 
 ---
 
@@ -15,7 +15,7 @@ All events must contain:
 - `t` (*string*, required): ISO 8601 timestamp (`YYYY-MM-DDTHH:mm:ssZ` or with timezone offset).
 - `deck` (*string*, required): Slide deck title or folder slug.
 - `slide` (*integer*, required): 0-based index of the slide.
-- `type` (*string*, required): One of `"quiz" | "predict" | "recall" | "complete"`.
+- `type` (*string*, required): One of `"quiz" | "predict" | "recall" | "complete" | "card"`.
 - `course` (*string | null*, optional): Course name or slug.
 - `lesson` (*string | null*, optional): Lesson folder name.
 - `slideId` (*string | null*, optional): Slide anchor ID.
@@ -141,3 +141,31 @@ Emitted once when the learner finishes reviewing the final slide of a deck.
   "predictions": "2/3"
 }
 ```
+
+---
+
+### 6. Event: `card`
+Emitted by Aurora's new `srs` slide when the learner reviews a spaced repetition flashcard. Read by **Vega** ([vega-mcp](https://github.com/DuongNAD/vega-mcp), the FSRS memory engine) via `vega_sync` to update card stability, difficulty, and interval. Polaris ignores this event type.
+
+**Fields:**
+- `card` (*string*, required): Vega card ID.
+- `rating` (*string*, required): `"again" | "hard" | "good" | "easy"`.
+- `ms` (*integer*, optional, ≥ 0): Time taken to answer in milliseconds.
+
+**Example:**
+```json
+{
+  "v": 1,
+  "t": "2026-10-15T14:48:00+07:00",
+  "course": "ai-agents-101",
+  "lesson": "01-vong-lap-agent",
+  "deck": "Agent và Vòng lặp ReAct",
+  "slide": 12,
+  "slideId": "s_srs_1",
+  "type": "card",
+  "card": "card-react-loop-01",
+  "rating": "good",
+  "ms": 4200
+}
+```
+

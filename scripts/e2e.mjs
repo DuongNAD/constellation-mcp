@@ -237,7 +237,7 @@ try {
   // Test server identification and instructions
   const info = client.getServerVersion();
   ok("server identifies itself as constellation", info?.name === "constellation", `${info?.name} ${info?.version}`);
-  ok("server version is 0.1.1", info?.version === "0.1.1", info?.version);
+  ok("server version is 0.1.2", info?.version === "0.1.2", info?.version);
   const instructions = client.getInstructions() ?? "";
   ok("server sends instructions with workflow and rules", instructions.includes("Workflow:") && instructions.includes("Rules:"));
 
@@ -450,28 +450,82 @@ try {
     healthText.split("\n")[3] ?? "",
   );
 
-  // 9. eco_unregister
-  r = await call("eco_unregister", { server: "broken-test-server" });
-  ok("eco_unregister succeeds", !r.isError && textOf(r).includes("Successfully removed server entries"));
-  const ag1AfterUnreg = readFileSync(ag1Path, "utf8");
-  ok("broken-test-server removed from Antigravity config", !ag1AfterUnreg.includes("broken-test-server"));
-  ok("fake-test-server remains in Antigravity config", ag1AfterUnreg.includes("fake-test-server"));
-  ok("unrelated-secret-server remains in Antigravity config", ag1AfterUnreg.includes("unrelated-secret-server"));
+  // 9. eco_unregister improvements: multi-server batch unregister, --forget, pre-run backup, and no-op on rerun
+  const ag1BeforeMulti = readFileSync(ag1Path, "utf8");
+  ok("fake-test-server present before unregister", ag1BeforeMulti.includes("fake-test-server"));
+  ok("broken-test-server present before unregister", ag1BeforeMulti.includes("broken-test-server"));
+
+  // Multi-server unregister in one run
+  r = await call("eco_unregister", { servers: ["fake-test-server", "broken-test-server"] });
+  ok("multi-server unregister succeeds", !r.isError && textOf(r).includes("Successfully removed server entries"));
+
+  const ag1AfterMulti = readFileSync(ag1Path, "utf8");
+  ok(
+    "both servers removed from Antigravity in one unregister run",
+    !ag1AfterMulti.includes("fake-test-server") && !ag1AfterMulti.includes("broken-test-server"),
+  );
+  ok("unrelated-secret-server remains in Antigravity config", ag1AfterMulti.includes("unrelated-secret-server"));
+
+  // Antigravity backup was written once and equals the pre-run state
+  const ag1BackupAfterMulti = readFileSync(ag1BackupPath, "utf8");
+  ok(
+    "multi-server unregister writes each file once with pre-run backup",
+    ag1BackupAfterMulti === ag1BeforeMulti,
+  );
+
+  // --forget option removes entries from manifest and creates backup of manifest
+  const manifestBeforeForget = readFileSync(manifestPath, "utf8");
+  ok(
+    "manifest contains servers before forget",
+    manifestBeforeForget.includes("fake-test-server") && manifestBeforeForget.includes("broken-test-server"),
+  );
+
+  r = await call("eco_unregister", { servers: ["fake-test-server", "broken-test-server"], forget: true });
+  ok("unregister with forget: true succeeds", !r.isError);
+
+  const manifestAfterForget = readFileSync(manifestPath, "utf8");
+  ok(
+    "--forget removes manifest entries",
+    !manifestAfterForget.includes("fake-test-server") && !manifestAfterForget.includes("broken-test-server"),
+  );
+
+  const manifestBackupPath = `${manifestPath}.bak.constellation`;
+  ok("manifest rolling backup created", existsSync(manifestBackupPath));
+  const manifestBackupContent = readFileSync(manifestBackupPath, "utf8");
+  ok("manifest backup contains pre-run state", manifestBackupContent === manifestBeforeForget);
+
+  // Second run is a no-op
+  const ag1BeforeNoop = readFileSync(ag1Path, "utf8");
+  const manifestBeforeNoop = readFileSync(manifestPath, "utf8");
+  r = await call("eco_unregister", { servers: ["fake-test-server", "broken-test-server"], forget: true });
+  ok(
+    "second unregister run is a no-op",
+    !r.isError && (textOf(r).includes("None of the servers") || textOf(r).includes("not present")),
+  );
+  ok("second run leaves agent config untouched", readFileSync(ag1Path, "utf8") === ag1BeforeNoop);
+  ok("second run leaves manifest untouched", readFileSync(manifestPath, "utf8") === manifestBeforeNoop);
 
   // 10. eco_contracts
   r = await call("eco_contracts", { action: "list" });
   ok("contracts list", !r.isError && textOf(r).includes("aurora-progress-event.v1") && textOf(r).includes("learning-units"));
 
   r = await call("eco_contracts", { action: "show", name: "aurora-progress-event.v1" });
-  ok("contracts show aurora-progress-event.v1", !r.isError && textOf(r).includes("aurora-progress-event.v1"));
+  ok("contracts show aurora-progress-event.v1", !r.isError && textOf(r).includes("aurora-progress-event.v1") && textOf(r).includes("Vega"));
 
   const validFixture = join(ROOT, "contracts", "fixtures", "valid-progress.jsonl");
   r = await call("eco_contracts", { action: "validate", name: "aurora-progress-event.v1", file: validFixture });
-  ok("contracts validate valid fixture passes", !r.isError && textOf(r).includes("PASSED") && textOf(r).includes("4/4 event line(s) valid"));
+  ok("contracts validate valid fixture passes", !r.isError && textOf(r).includes("PASSED") && textOf(r).includes("5/5 event line(s) valid"));
 
   const invalidFixture = join(ROOT, "contracts", "fixtures", "invalid-progress.jsonl");
   r = await call("eco_contracts", { action: "validate", name: "aurora-progress-event.v1", file: invalidFixture });
-  ok("contracts validate invalid fixture fails with line numbers", r.isError && textOf(r).includes("FAILED") && textOf(r).includes("Line 1") && textOf(r).includes("Line 2"));
+  ok(
+    "contracts validate invalid fixture fails with line numbers",
+    r.isError &&
+      textOf(r).includes("FAILED") &&
+      textOf(r).includes("Line 1") &&
+      textOf(r).includes("Line 5") &&
+      textOf(r).includes("Line 6"),
+  );
 
   /* ───────── 11. CLI Integration Checks ───────── */
   console.log("\n--- CLI Integration Checks ---");
@@ -484,18 +538,18 @@ try {
 
   // Version command
   const verOut = execFileSync(process.execPath, [cliBin, "version"], { env: testEnv, encoding: "utf8" }).trim();
-  ok("CLI version prints 0.1.1", verOut === "0.1.1");
+  ok("CLI version prints 0.1.2", verOut === "0.1.2");
 
   // Status command
   const statusOut = execFileSync(process.execPath, [cliBin, "status"], { env: testEnv, encoding: "utf8" });
-  ok("CLI status prints table", statusOut.includes("Constellation Ecosystem Status") && statusOut.includes("fake-test-server"));
+  ok("CLI status prints table", statusOut.includes("Constellation Ecosystem Status"));
 
   // Validate valid fixture via CLI
   const valOut = execFileSync(process.execPath, [cliBin, "contracts", "validate", "aurora-progress-event.v1", validFixture], {
     env: testEnv,
     encoding: "utf8",
   });
-  ok("CLI contracts validate valid fixture passes", valOut.includes("OK: Contract 'aurora-progress-event.v1' valid"));
+  ok("CLI contracts validate valid fixture passes", valOut.includes("OK: Contract 'aurora-progress-event.v1' valid (5/5 lines)"));
 
   // Validate invalid fixture via CLI
   let invalidFailedAsExpected = false;
@@ -507,7 +561,10 @@ try {
   } catch (e) {
     invalidFailedAsExpected = true;
     const out = String(e.stdout ?? "") + String(e.stderr ?? "");
-    ok("CLI contracts validate invalid fixture exits with error and line numbers", out.includes("FAIL:") && out.includes("Line 1") && out.includes("Line 2"));
+    ok(
+      "CLI contracts validate invalid fixture exits with error and line numbers",
+      out.includes("FAIL:") && out.includes("Line 1") && out.includes("Line 5") && out.includes("Line 6"),
+    );
   }
   ok("CLI contracts validate invalid exits non-zero", invalidFailedAsExpected);
 

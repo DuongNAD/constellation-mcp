@@ -6,7 +6,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSy
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-export const VERSION = "0.1.1";
+export const VERSION = "0.1.2";
 
 export const SECRET_KEY_REGEX = /KEY|TOKEN|SECRET|PASSWORD|AUTH/i;
 

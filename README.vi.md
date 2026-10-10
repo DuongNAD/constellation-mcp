@@ -11,6 +11,7 @@ flowchart TD
     Aurora["Aurora Slides MCP\n(Slide bài giảng & Thực hành)"]
     SmartDrive["SmartDrive-OS\n(Quản trị SSD & Tìm kiếm)"]
     McpAgy["mcp-agy\n(Ủy quyền Antigravity)"]
+    Vega["Vega MCP\n(Bộ nhớ FSRS Spaced Repetition)"]
   end
 
   subgraph ControlPlane["Trung tâm điều khiển"]
@@ -37,9 +38,22 @@ flowchart TD
   Constellation -->|Kiểm tra sức khỏe & Cập nhật| McpAgy
 
   Aurora -.->|aurora-progress-event.v1| Polaris
+  Aurora -.->|aurora-progress-event.v1 (card)| Vega
   Polaris -.->|post-write-hook| SmartDrive
   Aurora -.->|post-write-hook| SmartDrive
 ```
+
+---
+
+## Tổng quan hệ sinh thái
+
+| Máy chủ / Công cụ | Mã nguồn (Repo) | Mục đích | Hợp đồng dùng chung |
+|---|---|---|---|
+| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Thiết kế lộ trình học, tra cứu dữ liệu, lịch ôn tập ngắt quãng | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels` |
+| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Slide thuyết trình, bài tập tương tác, slide thẻ SRS | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels` |
+| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | Bộ nhớ thuật toán FSRS (`vega_sync`) | `aurora-progress-event.v1` (sự kiện `card`) |
+| **SmartDrive-OS** | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) | Quản trị SSD, tìm kiếm ngữ nghĩa BM25/vector | `learning-units`, `post-write-hook` |
+| **mcp-agy** | [mcp-agy](https://github.com/DuongNAD/mcp-agy) | Cổng ủy quyền Google Antigravity cho subagent | — |
 
 ---
 
@@ -109,7 +123,7 @@ Thêm Constellation vào tệp cấu hình agent của bạn:
 | `eco_status` | Bảng ma trận trạng thái đăng ký, độ đồng bộ và trạng thái Git của các máy chủ. |
 | `eco_import` | Quét cấu hình các agent hiện có và nạp vào `~/.constellation/ecosystem.json` với tham chiếu bảo mật. |
 | `eco_register` | Đăng ký các máy chủ từ manifest vào Claude Code, Antigravity, Antigravity CLI, Cursor, Codex. |
-| `eco_unregister` | Hủy đăng ký an toàn máy chủ khỏi các agent được chỉ định. |
+| `eco_unregister` | Hủy đăng ký an toàn một hoặc nhiều máy chủ khỏi các agent (và tùy chọn quên khỏi manifest). |
 | `eco_health` | Khởi động máy chủ qua stdio, bắt tay client, kiểm tra danh sách công cụ và đo độ trễ. |
 | `eco_doctor` | Phát hiện lệch cấu hình, đường dẫn tệp không tồn tại, gom nhóm danh sách server chưa quản lý. |
 | `eco_update` | Cập nhật an toàn với `git pull --ff-only` trên cây mã nguồn sạch, chạy lệnh `build` và `test`. |
@@ -133,6 +147,9 @@ node dist/constellation.mjs import
 node dist/constellation.mjs register --dry-run
 node dist/constellation.mjs register polaris aurora-slides
 
+# Hủy đăng ký nhiều máy chủ (kèm tùy chọn quên khỏi manifest)
+node dist/constellation.mjs unregister broken-server fake-server --forget
+
 # Kiểm tra sức khỏe kết nối
 node dist/constellation.mjs health
 
@@ -147,7 +164,7 @@ node dist/constellation.mjs contracts validate aurora-progress-event.v1 contract
 
 ## Hợp đồng dùng chung (Contracts)
 
-1. [`aurora-progress-event.v1`](contracts/aurora-progress-event.v1/README.md): Đặc tả sự kiện học tập tương tác phát ra từ Aurora và nạp vào Polaris.
+1. [`aurora-progress-event.v1`](contracts/aurora-progress-event.v1/README.md): Đặc tả sự kiện học tập tương tác phát ra từ Aurora (quiz, predict, recall, complete, card) và nạp vào Polaris, Vega.
 2. [`learning-units`](contracts/learning-units/README.md): Quy chuẩn đánh dấu thư mục học tập (`course.json`, `deck.json`, `polaris/brief.json`) và quy tắc bảo vệ của SmartDrive.
 3. [`post-write-hook`](contracts/post-write-hook/README.md): Cơ chế thông báo cập nhật ngầm `smart-drive update <dir> --quiet`.
 4. [`source-labels`](contracts/source-labels/README.md): Quy ước nhãn tài liệu "Khóa học" / "Mở rộng" / "chưa xác minh".
@@ -156,6 +173,9 @@ node dist/constellation.mjs contracts validate aurora-progress-event.v1 contract
 
 ## Lịch sử phiên bản
 
+- **0.1.2** (2026-10-11):
+  - **Hợp đồng `aurora-progress-event.v1` (sự kiện `card`)**: Bổ sung sự kiện thẻ ghi nhớ SRS (`card`, `rating`: again/hard/good/easy, `ms` tùy chọn) phát ra từ slide `srs` của Aurora cho công cụ ghi nhớ Vega FSRS.
+  - **Hủy đăng ký nhiều máy chủ & Quên khỏi manifest**: `constellation unregister a b c` / `eco_unregister {servers}` hỗ trợ hủy đăng ký hàng loạt, ghi tệp duy nhất 1 lần với bản sao lưu trước phiên chạy; tùy chọn `--forget` / `{forget: true}` đồng thời xóa máy chủ khỏi `ecosystem.json`.
 - **0.1.1** (2026-10-11):
   - **Sao lưu hoàn toàn khôi phục được**: Gom các thay đổi theo từng tệp cấu hình; mỗi tệp chỉ ghi tối đa 1 lần mỗi lần chạy và bản sao lưu (`*.bak.constellation`) lưu chính xác trạng thái trước khi chạy.
   - **Tách riêng target agent Antigravity CLI**: Tách `antigravity-cli` (`~/.gemini/antigravity-cli/mcp_config.json`) khỏi `antigravity` (3 bản sao IDE) để hỗ trợ cấu hình subagent gọn nhẹ và không bị báo lệch cấu hình giả.

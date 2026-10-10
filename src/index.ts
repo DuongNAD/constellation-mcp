@@ -275,21 +275,54 @@ export async function registerServers(
   return { diffs: allDiffs, summary: lines.join("\n") };
 }
 
-export async function unregisterServer(
-  serverName: string,
+export async function unregisterServers(
+  serverNames: string | string[],
   agentNames?: AgentName[],
   dryRun = false,
+  forget = false,
 ): Promise<{ diffs: DiffEntry[]; summary: string }> {
+  const names = Array.isArray(serverNames) ? serverNames : [serverNames];
+  if (names.length === 0) {
+    return {
+      diffs: [],
+      summary: "No servers specified to unregister.",
+    };
+  }
+
   const targetAgents = getAgents(agentNames);
   const allDiffs: DiffEntry[] = [];
+  const namesStr = names.map((n) => `'${n}'`).join(", ");
   const lines: string[] = [
     dryRun
-      ? `Unregister preview (dry run) for '${serverName}':`
-      : `Unregistering '${serverName}' from coding agents:`,
+      ? `Unregister preview (dry run) for ${namesStr}:`
+      : `Unregistering ${namesStr} from coding agents:`,
   ];
 
+  let manifestChanged = false;
+  if (forget) {
+    const manifest = loadManifest();
+    const manifestPath = getManifestPath();
+    const remainingServers = manifest.servers.filter((s) => !names.includes(s.name));
+    const removedServers = manifest.servers.filter((s) => names.includes(s.name));
+
+    if (removedServers.length > 0) {
+      manifestChanged = true;
+      if (dryRun) {
+        lines.push(`[Manifest] Would remove ${removedServers.map((s) => `'${s.name}'`).join(", ")} from ${manifestPath}`);
+      } else {
+        saveManifest({
+          ...manifest,
+          servers: remainingServers,
+        });
+        lines.push(`[Manifest] Removed ${removedServers.map((s) => `'${s.name}'`).join(", ")} from ${manifestPath}`);
+      }
+    } else {
+      lines.push(`[Manifest] None of the specified servers were present in manifest (${manifestPath})`);
+    }
+  }
+
   for (const agent of targetAgents) {
-    const diffs = await agent.unregister(serverName, dryRun);
+    const diffs = await agent.unregister(names, dryRun);
     allDiffs.push(...diffs);
     for (const d of diffs) {
       if (d.action !== "noop") {
@@ -300,14 +333,16 @@ export async function unregisterServer(
   }
 
   const mutatedDiffs = allDiffs.filter((d) => d.action !== "noop");
-  if (mutatedDiffs.length === 0) {
-    lines.push(`Server '${serverName}' was not present in the targeted agents.`);
-  } else if (!dryRun) {
+  if (mutatedDiffs.length === 0 && !manifestChanged) {
+    lines.push(`None of the servers (${names.join(", ")}) were present in the targeted agents.`);
+  } else if (!dryRun && (mutatedDiffs.length > 0 || manifestChanged)) {
     lines.push("", "Successfully removed server entries with rolling backups.");
   }
 
   return { diffs: allDiffs, summary: lines.join("\n") };
 }
+
+export const unregisterServer = unregisterServers;
 
 /* ───────── MCP Server ───────── */
 
@@ -396,19 +431,34 @@ export async function startMcp(): Promise<void> {
   server.registerTool(
     "eco_unregister",
     {
-      title: "Unregister an MCP server from coding agents",
+      title: "Unregister MCP servers from coding agents",
       description:
-        "Remove an MCP server from coding agent configurations. Creates rolling backups and performs atomic writes.",
+        "Remove one or more MCP servers from coding agent configurations (and optionally from ecosystem manifest). Creates rolling backups and performs atomic writes.",
       inputSchema: {
-        server: z.string().min(1).describe("Name of the server to unregister"),
+        server: z.string().optional().describe("Single server name to unregister (or use servers)"),
+        servers: z.array(z.string()).optional().describe("Server names to unregister"),
         agents: z.array(z.enum(["claude", "antigravity", "antigravity-cli", "cursor", "codex"])).optional().describe("Target agents (defaults to all)"),
         dry_run: z.boolean().default(false).optional().describe("Preview diffs without modifying files"),
+        forget: z.boolean().default(false).optional().describe("Also remove server entries from ecosystem manifest"),
       },
       annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
-    async ({ server: serverName, agents, dry_run }) =>
+    async ({ server: singleServer, servers: multiServers, agents, dry_run, forget }) =>
       safe(async () => {
-        const res = await unregisterServer(serverName, agents as AgentName[] | undefined, dry_run ?? false);
+        const names = multiServers && multiServers.length > 0
+          ? multiServers
+          : singleServer
+            ? [singleServer]
+            : [];
+        if (names.length === 0) {
+          return text("No server specified to unregister.", true);
+        }
+        const res = await unregisterServers(
+          names,
+          agents as AgentName[] | undefined,
+          dry_run ?? false,
+          forget ?? false,
+        );
         return text(res.summary);
       }),
   );
@@ -672,7 +722,7 @@ Commands:
   status [server]               View server registration and agent sync status
   import [--dry-run]            Bootstrap manifest from existing agent configs
   register [servers...]         Register servers in coding agents
-  unregister <server>           Unregister server from coding agents
+  unregister <servers...>       Unregister servers from coding agents
   health [servers...]           Run stdio health checks and tool discovery
   doctor                        Check config drift, path validity, and Antigravity sync
   update [servers...]           Safely pull (--ff-only), build, and test servers
@@ -683,6 +733,7 @@ Commands:
 
 Options:
   --dry-run                     Preview file modifications without writing
+  --forget                      Also remove server entries from manifest
   --json                        Output structured JSON
   --agents=a,b                  Target specific agents (claude, antigravity, antigravity-cli, cursor, codex)
   --timeout=ms                  Health check timeout in milliseconds
@@ -693,7 +744,8 @@ Options:
 export async function cli(rawArgs: string[]): Promise<number> {
   const isJson = rawArgs.includes("--json");
   const dryRun = rawArgs.includes("--dry-run");
-  const args = rawArgs.filter((a) => a !== "--json" && a !== "--dry-run");
+  const forget = rawArgs.includes("--forget");
+  const args = rawArgs.filter((a) => a !== "--json" && a !== "--dry-run" && a !== "--forget");
 
   const cmd = args[0] || "mcp";
   const target = args[1];
@@ -759,8 +811,9 @@ export async function cli(rawArgs: string[]): Promise<number> {
     }
 
     case "unregister": {
-      if (!target) {
-        console.error("Usage: constellation unregister <server> [--agents=...]");
+      const serverNames = args.slice(1).filter((a) => !a.startsWith("--"));
+      if (serverNames.length === 0) {
+        console.error("Usage: constellation unregister <servers...> [--forget] [--agents=...]");
         return 1;
       }
       let agentNames: AgentName[] | undefined;
@@ -768,7 +821,7 @@ export async function cli(rawArgs: string[]): Promise<number> {
       if (agentsArg) {
         agentNames = agentsArg.slice("--agents=".length).split(",") as AgentName[];
       }
-      const res = await unregisterServer(target, agentNames, dryRun);
+      const res = await unregisterServers(serverNames, agentNames, dryRun, forget);
       if (isJson) {
         console.log(JSON.stringify(maskSecretsInObject(res), null, 2));
       } else {

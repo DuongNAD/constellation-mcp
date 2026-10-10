@@ -7,6 +7,7 @@ projects compatible. It is a TypeScript MCP server + CLI, built like its sister 
 Ecosystem (all by DuongNAD):
 - Polaris (https://github.com/DuongNAD/polaris-mcp): course architect (profile, research, roadmap, schedule).
 - Aurora Slides (https://github.com/DuongNAD/aurora-slides-mcp): lessons, practice and progress events.
+- Vega (https://github.com/DuongNAD/vega-mcp): FSRS spaced repetition memory engine.
 - SmartDrive-OS (https://github.com/DuongNAD/smart-drive-os): exFAT SSD governance, index and learning search.
 - mcp-agy: delegates coding work to Google Antigravity.
 - Constellation (this project): registration, health, updates, contracts.
@@ -57,8 +58,8 @@ Reference for config formats and edge cases (read only): SmartDrive-OS smart_dri
   health result, repo state (branch, dirty, ahead/behind) when `path` is a git repo.
 - `eco_import {dry_run?}`: bootstrap or refresh the manifest from the existing agent configs (union, de-duplicated,
   secrets turned into references; assigns `antigravity-cli` only to servers found in that file).
-- `eco_register {servers?, agents?, dry_run?}` and `eco_unregister {server, agents?, dry_run?}`: collects all changes
-  per file and writes each file at most once with a single pre-run backup.
+- `eco_register {servers?, agents?, dry_run?}` and `eco_unregister {server?, servers?, agents?, dry_run?, forget?}`: collects all changes
+  per file and writes each file at most once with a single pre-run backup; `--forget` removes from manifest.
 - `eco_health {servers?}`: start each server over stdio with the MCP SDK client, initialize, list tools; report
   start-up time, server name/version, tool count, errors; time-boxed; servers are stopped afterwards.
 - `eco_doctor`: drift between agent configs and the manifest (including the Antigravity copies), entries whose command
@@ -70,12 +71,12 @@ Reference for config formats and edge cases (read only): SmartDrive-OS smart_dri
   file against a contract and report line-level errors.
 - Prompts: `ecosystem_setup` (import -> review -> register with dry run -> health -> doctor) and `ecosystem_doctor`.
 - CLI mirrors the tools: `status`, `import`, `register`, `unregister`, `health`, `doctor`, `update`, `contracts`,
-  `version`, `help`; `--json` for machine output; `--dry-run`.
+  `version`, `help`; `--json` for machine output; `--dry-run`; `--forget`.
 
 ## Contracts (contracts/ folder, the single source of truth)
-- `aurora-progress-event.v1`: the learning event line written by Aurora and read by Polaris (fields: v, t, course,
-  lesson, deck, slide, slideId, type quiz|predict|recall|complete and their payloads, optional quiz chosenText,
-  answerText, explanation). Zod schema -> generated JSON Schema file + valid and invalid fixtures.
+- `aurora-progress-event.v1`: the learning event line written by Aurora and read by Polaris & Vega (fields: v, t, course,
+  lesson, deck, slide, slideId, type quiz|predict|recall|complete|card and their payloads, quiz chosenText,
+  answerText, explanation; card, rating: again/hard/good/easy, ms). Zod schema -> generated JSON Schema file + valid and invalid fixtures.
 - `learning-units`: folder markers (course.json, deck.json, polaris/brief.json) and what tools may and may not do to
   them (SmartDrive protection rules).
 - `post-write-hook`: `smart-drive update <dir> --quiet` (who calls it, when, how to disable).
@@ -97,9 +98,10 @@ and fake MCP server scripts. Checks:
 - a server targeted at "antigravity" but not "antigravity-cli" is not added to the CLI file and the doctor reports no drift for it;
 - doctor groups unmanaged servers into one line per agent, and reports empty manifests cleanly;
 - health reports fake server tools and timing, broken server error;
-- unregister removes only the managed entry;
-- contracts validate valid/invalid fixtures with line numbers.
+- multi-server unregister writes each file once with a pre-run backup; `--forget` removes manifest entries; second run is a no-op;
+- contracts validate valid/invalid fixtures with line numbers (including card events).
 
 ## Status
+- 2026-10-11: v0.1.2 released. Added "card" event to aurora-progress-event.v1 contract for Vega FSRS memory engine integration, multi-server unregister with atomic single-write per file and pre-run backup, and --forget manifest removal.
 - 2026-10-11: v0.1.1 released. Fixed backups to be fully reversible with single backup/write per run, split `antigravity-cli` agent target, compact doctor reports with grouped unmanaged servers and empty manifest handling.
 - 2026-10-11: v0.1.0 built and verified with TypeScript typecheck, e2e integration tests, stdio health checks, drift doctor, and shared contract validation.

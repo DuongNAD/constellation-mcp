@@ -11,6 +11,7 @@ flowchart TD
     Aurora["Aurora Slides MCP\n(Keynote Decks & Practice)"]
     SmartDrive["SmartDrive-OS\n(SSD Governance & Index)"]
     McpAgy["mcp-agy\n(Antigravity Delegation)"]
+    Vega["Vega MCP\n(FSRS Memory Engine)"]
   end
 
   subgraph ControlPlane["Control Plane"]
@@ -37,9 +38,22 @@ flowchart TD
   Constellation -->|Health & Updates| McpAgy
 
   Aurora -.->|aurora-progress-event.v1| Polaris
+  Aurora -.->|aurora-progress-event.v1 (card)| Vega
   Polaris -.->|post-write-hook| SmartDrive
   Aurora -.->|post-write-hook| SmartDrive
 ```
+
+---
+
+## Ecosystem Overview
+
+| Server / Tool | Repository | Purpose | Shared Contracts |
+|---|---|---|---|
+| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Course architect, evidence research, spaced reviews | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels` |
+| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Keynote-style decks, interactive recall, SRS slides | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels` |
+| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | FSRS spaced repetition memory engine (`vega_sync`) | `aurora-progress-event.v1` (`card` event) |
+| **SmartDrive-OS** | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) | SSD workspace governance, BM25/vector search | `learning-units`, `post-write-hook` |
+| **mcp-agy** | [mcp-agy](https://github.com/DuongNAD/mcp-agy) | Google Antigravity delegation gateway | — |
 
 ---
 
@@ -109,7 +123,7 @@ Add Constellation to your agent configuration:
 | `eco_status` | Status matrix showing server registration across all agents, sync state, and Git status. |
 | `eco_import` | Scans existing agent configs and bootstraps `~/.constellation/ecosystem.json` with secret references. |
 | `eco_register` | Synchronizes servers from manifest into Claude Code, Antigravity, Antigravity CLI, Cursor, and Codex. |
-| `eco_unregister` | Safely removes a server from targeted agent configurations. |
+| `eco_unregister` | Safely removes one or more servers from targeted agent configurations (and optionally forgets from manifest). |
 | `eco_health` | Starts child servers over stdio, performs client handshakes, lists tools, and records latencies. |
 | `eco_doctor` | Detects config drift, missing file paths, Antigravity copy mismatches, and groups unmanaged servers. |
 | `eco_update` | Pulls (`git pull --ff-only` on clean trees) and runs configured `build` and `test` scripts. |
@@ -133,6 +147,9 @@ node dist/constellation.mjs import
 node dist/constellation.mjs register --dry-run
 node dist/constellation.mjs register polaris aurora-slides
 
+# Unregister servers (batch and forget options)
+node dist/constellation.mjs unregister broken-server fake-server --forget
+
 # Health check
 node dist/constellation.mjs health
 
@@ -147,7 +164,7 @@ node dist/constellation.mjs contracts validate aurora-progress-event.v1 contract
 
 ## Shared Contracts
 
-1. [`aurora-progress-event.v1`](contracts/aurora-progress-event.v1/README.md): Interactive learning event specification emitted by Aurora and consumed by Polaris.
+1. [`aurora-progress-event.v1`](contracts/aurora-progress-event.v1/README.md): Interactive learning event specification emitted by Aurora (quiz, predict, recall, complete, card) and consumed by Polaris and Vega.
 2. [`learning-units`](contracts/learning-units/README.md): Protected folder markers (`course.json`, `deck.json`, `polaris/brief.json`) and SmartDrive SSD rules.
 3. [`post-write-hook`](contracts/post-write-hook/README.md): Debounced `smart-drive update <dir> --quiet` notification standard.
 4. [`source-labels`](contracts/source-labels/README.md): "Khóa học" / "Mở rộng" / "chưa xác minh" label mappings.
@@ -156,6 +173,9 @@ node dist/constellation.mjs contracts validate aurora-progress-event.v1 contract
 
 ## Version History
 
+- **0.1.2** (2026-10-11):
+  - **Active Recall SRS Card Contract**: Added `card` event type to `aurora-progress-event.v1` (`card`, `rating`: again/hard/good/easy, optional `ms`) emitted by Aurora Slides `srs` slide for Vega FSRS memory engine ingestion.
+  - **Multi-Server Unregister & Manifest Forget**: `constellation unregister a b c` / `eco_unregister {servers}` batches unregistration across all target agents in a single write with pre-run backup; `--forget` / `{forget: true}` removes entries from `ecosystem.json`.
 - **0.1.1** (2026-10-11):
   - **Reversible Backups**: Batch changes per config file; each file is written at most once per run, and rolling backups (`*.bak.constellation`) capture the exact state before the run.
   - **Antigravity CLI Agent Target**: Split `antigravity-cli` (`~/.gemini/antigravity-cli/mcp_config.json`) from `antigravity` (3 IDE copies) to support minimal subagent setups without spurious drift warnings.

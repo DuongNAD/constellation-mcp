@@ -14,7 +14,7 @@ export const ProgressEventV1Schema = z.object({
   deck: z.string().min(1).describe("Slide deck name / slug"),
   slide: z.number().int().min(0).describe("Slide index (0-based)"),
   slideId: z.string().nullable().optional(),
-  type: z.enum(["quiz", "predict", "recall", "complete"]).describe("Event category"),
+  type: z.enum(["quiz", "predict", "recall", "complete", "card"]).describe("Event category"),
 
   // Quiz fields
   question: z.string().max(200).optional(),
@@ -28,7 +28,7 @@ export const ProgressEventV1Schema = z.object({
   // Predict fields
   title: z.string().optional(),
   prediction: z.string().max(2000).optional(),
-  rating: z.enum(["right", "different", "got", "missed"]).optional(),
+  rating: z.enum(["right", "different", "got", "missed", "again", "hard", "good", "easy"]).optional(),
   output: z.string().max(300).optional(),
 
   // Recall fields
@@ -41,6 +41,10 @@ export const ProgressEventV1Schema = z.object({
   slides: z.number().int().optional(),
   quiz: z.string().nullable().optional(),
   predictions: z.string().nullable().optional(),
+
+  // Card fields (SRS / Vega)
+  card: z.string().optional(),
+  ms: z.number().int().min(0).optional(),
 });
 
 export type ProgressEventV1 = z.infer<typeof ProgressEventV1Schema>;

@@ -56,7 +56,8 @@
         "quiz",
         "predict",
         "recall",
-        "complete"
+        "complete",
+        "card"
       ],
       "description": "Event category"
     },
@@ -119,7 +120,11 @@
         "right",
         "different",
         "got",
-        "missed"
+        "missed",
+        "again",
+        "hard",
+        "good",
+        "easy"
       ],
       "description": "Self-evaluation rating"
     },
@@ -163,6 +168,15 @@
         "null"
       ],
       "description": "Summary prediction accuracy (e.g. '2/3')"
+    },
+    "card": {
+      "type": "string",
+      "description": "Vega card identifier"
+    },
+    "ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Time to answer in milliseconds"
     }
   },
   "additionalProperties": true

@@ -29,6 +29,7 @@ Constellation is the control plane for the learner's MCP ecosystem:
 Ecosystem Projects:
 - Polaris (https://github.com/DuongNAD/polaris-mcp): Course architect, evidence research, spaced reviews.
 - Aurora Slides (https://github.com/DuongNAD/aurora-slides-mcp): Keynote-style decks, interactive learning, progress events.
+- Vega (https://github.com/DuongNAD/vega-mcp): FSRS spaced repetition memory engine.
 - SmartDrive-OS (https://github.com/DuongNAD/smart-drive-os): SSD governance, index, learning search.
 - mcp-agy: Delegation to Google Antigravity.
 - Constellation (this project): Registration, health, updates, and shared contracts.`,
@@ -126,7 +127,7 @@ The \`eco_update\` tool updates git-backed MCP servers safely:
 
 Constellation maintains the shared specifications that keep ecosystem tools aligned:
 
-1. \`aurora-progress-event.v1\`: Interactive learning events (quiz, predict, recall, complete) emitted by Aurora and consumed by Polaris.
+1. \`aurora-progress-event.v1\`: Interactive learning events (quiz, predict, recall, complete, card) emitted by Aurora and consumed by Polaris and Vega.
 2. \`learning-units\`: Standard folder markers (course.json, deck.json, polaris/brief.json) and SmartDrive SSD protection rules.
 3. \`post-write-hook\`: Debounced \`smart-drive update <dir> --quiet\` notification hook.
 4. \`source-labels\`: "Khóa học" / "Mở rộng" / "chưa xác minh" evidence labels.

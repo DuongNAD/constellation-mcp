@@ -24,7 +24,7 @@ export const CONTRACTS: Record<string, ContractInfo> = {
     name: "aurora-progress-event.v1",
     title: "Aurora Learning Progress Event Contract v1",
     description:
-      "Structured learning events emitted by Aurora Slides (quiz, predict, recall, complete) and ingested by Polaris into the learner's Error Log ('Sổ lỗi') and spaced review schedule.",
+      "Structured learning events emitted by Aurora Slides (quiz, predict, recall, complete, card) and ingested by Polaris (Error Log & spaced review) and Vega (FSRS memory engine).",
     type: "data",
     schemaPath: join(CONTRACT_ROOT, "aurora-progress-event.v1", "schema.json"),
     hasValidator: true,
