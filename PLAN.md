@@ -104,6 +104,9 @@ and fake MCP server scripts. Checks:
 - contracts validate valid/invalid fixtures with line numbers (including card events).
 
 ## Status
+- 2026-10-11: v0.1.6 released. Register resolves ${secret:NAME} (env, then ~/.constellation/secrets.json) instead of
+  writing the placeholder, refuses unresolvable secrets, and compares real values so rotated keys propagate; doctor
+  flags leftover placeholders and secrets that differ from the store.
 - 2026-10-11: v0.1.5 released. UTF-8 BOM tolerance on JSON reads with doctor notices and clean BOM-less rewrites on register; resilient file-level parse error reporting without cascading false missing server warnings; env drift detection reporting unmanaged server env keys by name only (values masked) with fix instructions; registration merges and preserves unmanaged env keys without data loss.
 - 2026-10-11: v0.1.4 released. Added ".polaris/" as 7th canonical ignore pattern to personal-data contract protecting Polaris learner profiles (<hub>/.polaris/learner.json), updated valid .gitignore fixtures, docs, and e2e test expectations (7/7 patterns).
 - 2026-10-11: v0.1.3 released. Added "personal-data" shared contract with machine-readable patterns.json, canonical ignore patterns for Vega (.vega/), Aurora (progress.jsonl), Orion (orion-attempts.jsonl), and Polaris (captures, cache), automated .gitignore validation CLI/MCP with parent directory and wildcard support, and SmartDrive-OS managed block alignment.

@@ -717,6 +717,77 @@ try {
   }
   ok("CLI contracts validate invalid gitignore exits non-zero", invalidGitFailedAsExpected);
 
+  // Secrets resolve at register time: an agent that does not have the server yet gets the real value, never the
+  // ${secret:...} placeholder; a secret that cannot be resolved is refused.
+  {
+    const RESOLVE_VALUE = "e2e_resolved_secret_value_5566";
+    const secretsPath = join(FAKE_CONSTELLATION, "secrets.json");
+    const secretsBefore = existsSync(secretsPath) ? readFileSync(secretsPath, "utf8") : null;
+    writeFileSync(secretsPath, JSON.stringify({ E2E_RESOLVE_TOKEN: RESOLVE_VALUE }, null, 2) + "\n", "utf8");
+    const m = JSON.parse(readFileSync(manifestPath, "utf8").replace(/^﻿/, ""));
+    m.servers.push(
+      {
+        name: "secret-resolve-server",
+        transport: "stdio",
+        command: "node",
+        args: [FAKE_SERVER_SCRIPT],
+        env: { E2E_RESOLVE_TOKEN: "${secret:E2E_RESOLVE_TOKEN}" },
+        agents: ["cursor"],
+      },
+      {
+        name: "secret-missing-server",
+        transport: "stdio",
+        command: "node",
+        args: [FAKE_SERVER_SCRIPT],
+        env: { E2E_MISSING_TOKEN: "${secret:E2E_MISSING_TOKEN}" },
+        agents: ["cursor"],
+      },
+    );
+    writeFileSync(manifestPath, JSON.stringify(m, null, 2) + "\n", "utf8");
+
+    r = await call("eco_register", { servers: ["secret-resolve-server"] });
+    const resolveText = textOf(r);
+    const cursorCfg = JSON.parse(readFileSync(join(CURSOR_DIR, "mcp.json"), "utf8").replace(/^﻿/, ""));
+    const written = cursorCfg.mcpServers?.["secret-resolve-server"]?.env?.E2E_RESOLVE_TOKEN;
+    ok(
+      "register resolves ${secret:NAME} from secrets.json into the agent config",
+      !r.isError && written === RESOLVE_VALUE,
+      written === undefined ? "missing" : written === RESOLVE_VALUE ? "resolved" : "placeholder or other value",
+    );
+    ok("register output never prints the resolved secret", !resolveText.includes(RESOLVE_VALUE));
+
+    // An agent config left with the raw placeholder (what register wrote before 0.1.6) is drift and is repaired,
+    // even though placeholder and secret look the same once masked.
+    const cursorPath = join(CURSOR_DIR, "mcp.json");
+    const withPlaceholder = JSON.parse(readFileSync(cursorPath, "utf8").replace(/^﻿/, ""));
+    withPlaceholder.mcpServers["secret-resolve-server"].env.E2E_RESOLVE_TOKEN = "${secret:E2E_RESOLVE_TOKEN}";
+    writeFileSync(cursorPath, JSON.stringify(withPlaceholder, null, 2) + "\n", "utf8");
+    r = await call("eco_doctor");
+    ok(
+      "doctor flags a config that holds the unresolved ${secret:...} placeholder",
+      textOf(r).includes("unresolved placeholder") && !textOf(r).includes(RESOLVE_VALUE),
+    );
+    r = await call("eco_register", { servers: ["secret-resolve-server"] });
+    const repaired = JSON.parse(readFileSync(cursorPath, "utf8").replace(/^﻿/, ""));
+    ok(
+      "register replaces a leftover placeholder with the resolved secret",
+      repaired.mcpServers["secret-resolve-server"].env.E2E_RESOLVE_TOKEN === RESOLVE_VALUE &&
+        textOf(r).includes("updated secret value") &&
+        !textOf(r).includes(RESOLVE_VALUE),
+      textOf(r).slice(0, 200),
+    );
+
+    r = await call("eco_register", { servers: ["secret-missing-server"] });
+    const afterMissing = readFileSync(join(CURSOR_DIR, "mcp.json"), "utf8");
+    ok(
+      "register refuses an unresolvable secret instead of writing the placeholder",
+      textOf(r).includes("E2E_MISSING_TOKEN") && !afterMissing.includes("${secret:E2E_MISSING_TOKEN}"),
+      textOf(r).slice(0, 200),
+    );
+    if (secretsBefore === null) rmSync(secretsPath, { force: true });
+    else writeFileSync(secretsPath, secretsBefore, "utf8");
+  }
+
 } finally {
   await client.close();
   await transport.close();

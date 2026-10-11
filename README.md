@@ -183,6 +183,10 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 
 ## Version History
 
+- **0.1.6** (2026-10-11):
+  - Register resolves `${secret:NAME}` from the process environment or `~/.constellation/secrets.json` and writes the real value; an agent that already has the server keeps its value only when the store has none; a secret that cannot be resolved is refused (the placeholder is never written).
+  - Register compares real values (shown masked), so a rotated key or a leftover placeholder is updated ("updated secret value ... (values hidden)").
+  - Doctor flags agent configs that hold the unresolved placeholder or a secret that differs from the store.
 - **0.1.5** (2026-10-11):
   - **UTF-8 BOM Tolerance**: Tolerates leading UTF-8 BOM (`\uFEFF`) across all agent configurations and manifest files; `doctor` notices any BOM file ("starts with a UTF-8 BOM; some JSON parsers reject it; the next register rewrites it without one"); `register` rewrites files cleanly without a BOM.
   - **Resilient Config Diagnostics**: Unparseable JSON configs report a single file-level parse error instead of cascading false "missing server" warnings.

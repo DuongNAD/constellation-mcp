@@ -183,6 +183,10 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 
 ## Lịch sử phiên bản
 
+- **0.1.6** (2026-10-11):
+  - Register thay `${secret:NAME}` bằng giá trị thật lấy từ biến môi trường hoặc `~/.constellation/secrets.json`; agent đã có server chỉ giữ giá trị cũ khi kho secret không có; secret không tìm được thì bị từ chối (không bao giờ ghi chuỗi tham chiếu).
+  - Register so sánh giá trị thật (hiển thị vẫn che), nên key mới hoặc chuỗi tham chiếu còn sót sẽ được cập nhật ("updated secret value ... (values hidden)").
+  - Doctor báo config còn giữ chuỗi tham chiếu chưa thay hoặc secret khác với kho secret.
 - **0.1.5** (2026-10-11):
   - **Tương thích ký tự UTF-8 BOM**: Tự động loại bỏ ký tự BOM (`\uFEFF`) khi đọc các tệp cấu hình agent và manifest; `doctor` ghi nhận thông báo ("starts with a UTF-8 BOM; some JSON parsers reject it; the next register rewrites it without one"); `register` tự động chuẩn hóa ghi lại tệp sạch không còn BOM.
   - **Chẩn đoán JSON phân mảnh chính xác**: Tệp cấu hình JSON hỏng chỉ báo duy nhất 1 lỗi tệp kèm thông điệp lỗi cú pháp; loại bỏ hoàn toàn hiện tượng báo thiếu hàng loạt máy chủ giả (false positives).
