@@ -237,7 +237,7 @@ try {
   // Test server identification and instructions
   const info = client.getServerVersion();
   ok("server identifies itself as constellation", info?.name === "constellation", `${info?.name} ${info?.version}`);
-  ok("server version is 0.1.2", info?.version === "0.1.2", info?.version);
+  ok("server version is 0.1.3", info?.version === "0.1.3", info?.version);
   const instructions = client.getInstructions() ?? "";
   ok("server sends instructions with workflow and rules", instructions.includes("Workflow:") && instructions.includes("Rules:"));
 
@@ -507,10 +507,26 @@ try {
 
   // 10. eco_contracts
   r = await call("eco_contracts", { action: "list" });
-  ok("contracts list", !r.isError && textOf(r).includes("aurora-progress-event.v1") && textOf(r).includes("learning-units"));
+  ok(
+    "contracts list",
+    !r.isError &&
+      textOf(r).includes("aurora-progress-event.v1") &&
+      textOf(r).includes("learning-units") &&
+      textOf(r).includes("personal-data"),
+  );
 
   r = await call("eco_contracts", { action: "show", name: "aurora-progress-event.v1" });
   ok("contracts show aurora-progress-event.v1", !r.isError && textOf(r).includes("aurora-progress-event.v1") && textOf(r).includes("Vega"));
+
+  r = await call("eco_contracts", { action: "show", name: "personal-data" });
+  ok(
+    "contracts show personal-data",
+    !r.isError &&
+      textOf(r).includes("personal-data") &&
+      textOf(r).includes(".vega/") &&
+      textOf(r).includes("**/progress.jsonl") &&
+      textOf(r).includes("SmartDrive-OS"),
+  );
 
   const validFixture = join(ROOT, "contracts", "fixtures", "valid-progress.jsonl");
   r = await call("eco_contracts", { action: "validate", name: "aurora-progress-event.v1", file: validFixture });
@@ -527,6 +543,25 @@ try {
       textOf(r).includes("Line 6"),
   );
 
+  const validGitignoreFixture = join(ROOT, "contracts", "fixtures", "valid.gitignore");
+  r = await call("eco_contracts", { action: "validate", name: "personal-data", file: validGitignoreFixture });
+  ok(
+    "contracts validate valid gitignore passes",
+    !r.isError && textOf(r).includes("PASSED") && textOf(r).includes("6/6 pattern(s) covered"),
+  );
+
+  const invalidGitignoreFixture = join(ROOT, "contracts", "fixtures", "invalid.gitignore");
+  r = await call("eco_contracts", { action: "validate", name: "personal-data", file: invalidGitignoreFixture });
+  ok(
+    "contracts validate invalid gitignore fails listing missing patterns",
+    r.isError &&
+      textOf(r).includes("FAILED") &&
+      textOf(r).includes("aurora-progress-*.jsonl") &&
+      textOf(r).includes("orion-attempts.jsonl") &&
+      textOf(r).includes("**/polaris/captures/") &&
+      textOf(r).includes("**/polaris/.cache/"),
+  );
+
   /* ───────── 11. CLI Integration Checks ───────── */
   console.log("\n--- CLI Integration Checks ---");
 
@@ -538,11 +573,23 @@ try {
 
   // Version command
   const verOut = execFileSync(process.execPath, [cliBin, "version"], { env: testEnv, encoding: "utf8" }).trim();
-  ok("CLI version prints 0.1.2", verOut === "0.1.2");
+  ok("CLI version prints 0.1.3", verOut === "0.1.3");
 
   // Status command
   const statusOut = execFileSync(process.execPath, [cliBin, "status"], { env: testEnv, encoding: "utf8" });
   ok("CLI status prints table", statusOut.includes("Constellation Ecosystem Status"));
+
+  // CLI contracts show personal-data
+  const cliShowOut = execFileSync(process.execPath, [cliBin, "contracts", "show", "personal-data"], {
+    env: testEnv,
+    encoding: "utf8",
+  });
+  ok(
+    "CLI contracts show personal-data prints markdown",
+    cliShowOut.includes("# Contract: `personal-data`") &&
+      cliShowOut.includes(".vega/") &&
+      cliShowOut.includes("SmartDrive-OS"),
+  );
 
   // Validate valid fixture via CLI
   const valOut = execFileSync(process.execPath, [cliBin, "contracts", "validate", "aurora-progress-event.v1", validFixture], {
@@ -567,6 +614,37 @@ try {
     );
   }
   ok("CLI contracts validate invalid exits non-zero", invalidFailedAsExpected);
+
+  // Validate valid gitignore fixture via CLI
+  const valGitOut = execFileSync(process.execPath, [cliBin, "contracts", "validate", "personal-data", validGitignoreFixture], {
+    env: testEnv,
+    encoding: "utf8",
+  });
+  ok(
+    "CLI contracts validate valid gitignore passes",
+    valGitOut.includes("OK: Contract 'personal-data' valid (6/6 patterns covered)"),
+  );
+
+  // Validate invalid gitignore fixture via CLI
+  let invalidGitFailedAsExpected = false;
+  try {
+    execFileSync(process.execPath, [cliBin, "contracts", "validate", "personal-data", invalidGitignoreFixture], {
+      env: testEnv,
+      encoding: "utf8",
+    });
+  } catch (e) {
+    invalidGitFailedAsExpected = true;
+    const out = String(e.stdout ?? "") + String(e.stderr ?? "");
+    ok(
+      "CLI contracts validate invalid gitignore exits with error and lists missing patterns",
+      out.includes("FAIL:") &&
+        out.includes("aurora-progress-*.jsonl") &&
+        out.includes("orion-attempts.jsonl") &&
+        out.includes("**/polaris/captures/") &&
+        out.includes("**/polaris/.cache/"),
+    );
+  }
+  ok("CLI contracts validate invalid gitignore exits non-zero", invalidGitFailedAsExpected);
 
 } finally {
   await client.close();

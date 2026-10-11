@@ -606,7 +606,7 @@ export async function startMcp(): Promise<void> {
     {
       title: "Manage and validate shared ecosystem contracts",
       description:
-        "List shared contracts, view specifications, or validate JSON/JSONL data files against contract schemas (e.g. aurora-progress-event.v1).",
+        "List shared contracts, view specifications, or validate data files against contract schemas (e.g. aurora-progress-event.v1, personal-data).",
       inputSchema: {
         action: z.enum(["list", "show", "validate"]).describe("Contract operation to perform"),
         name: z.string().optional().describe("Contract name (e.g. 'aurora-progress-event.v1')"),
@@ -636,11 +636,19 @@ export async function startMcp(): Promise<void> {
           }
           const res = validateContract(name, resolve(file));
           if (res.ok) {
-            return text(`Contract validation PASSED for '${name}': ${res.validLines}/${res.totalLines} event line(s) valid in ${res.file}`);
+            const countLabel = name.includes("personal-data")
+              ? `${res.validLines}/${res.totalLines} pattern(s) covered`
+              : `${res.validLines}/${res.totalLines} event line(s) valid`;
+            return text(`Contract validation PASSED for '${name}': ${countLabel} in ${res.file}`);
           }
-          const errLines = res.errors.map((e) => `  - Line ${e.line ?? "?"}: ${e.message}`);
+          const errLines = res.errors.map((e) =>
+            e.line != null ? `  - Line ${e.line}: ${e.message}` : `  - ${e.message}`,
+          );
+          const failSummary = name.includes("personal-data")
+            ? `${res.validLines}/${res.totalLines} patterns covered`
+            : `${res.validLines}/${res.totalLines} lines valid`;
           return text(
-            `Contract validation FAILED for '${name}' in ${res.file} (${res.validLines}/${res.totalLines} lines valid):\n${errLines.join("\n")}`,
+            `Contract validation FAILED for '${name}' in ${res.file} (${failSummary}):\n${errLines.join("\n")}`,
             true,
           );
         }
@@ -945,10 +953,19 @@ export async function cli(rawArgs: string[]): Promise<number> {
           console.log(JSON.stringify(res, null, 2));
         } else {
           if (res.ok) {
-            console.log(`OK: Contract '${contractName}' valid (${res.validLines}/${res.totalLines} lines) in ${res.file}`);
+            const countLabel = contractName.includes("personal-data")
+              ? `${res.validLines}/${res.totalLines} patterns covered`
+              : `${res.validLines}/${res.totalLines} lines`;
+            console.log(`OK: Contract '${contractName}' valid (${countLabel}) in ${res.file}`);
           } else {
             console.error(`FAIL: Contract '${contractName}' validation failed in ${res.file}:`);
-            res.errors.forEach((e) => console.error(`  Line ${e.line ?? "?"}: ${e.message}`));
+            res.errors.forEach((e) => {
+              if (e.line != null) {
+                console.error(`  Line ${e.line}: ${e.message}`);
+              } else {
+                console.error(`  ${e.message}`);
+              }
+            });
           }
         }
         return res.ok ? 0 : 1;

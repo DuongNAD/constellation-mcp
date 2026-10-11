@@ -1,6 +1,6 @@
 {
   "name": "constellation-mcp",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Control plane of the learner's MCP ecosystem: registration, health, drift doctor, safe updates, and shared contracts.",
   "type": "module",
   "main": "dist/constellation.mjs",

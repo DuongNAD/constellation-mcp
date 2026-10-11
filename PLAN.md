@@ -81,7 +81,8 @@ Reference for config formats and edge cases (read only): SmartDrive-OS smart_dri
   them (SmartDrive protection rules).
 - `post-write-hook`: `smart-drive update <dir> --quiet` (who calls it, when, how to disable).
 - `source-labels`: "Khóa học" / "Mở rộng" / "chưa xác minh" and how Aurora `source` and Polaris fact labels map.
-Each contract has a Markdown page and, where it is data, a JSON Schema and fixtures that other repositories can use
+- `personal-data`: canonical ignore patterns for personal learning data (.vega/, **/progress.jsonl, aurora-progress-*.jsonl, orion-attempts.jsonl) and third-party/regenerable files (**/polaris/captures/, **/polaris/.cache/). Includes machine-readable patterns.json and automated .gitignore validator.
+Each contract has a Markdown page and, where it is data, a JSON Schema / pattern registry and fixtures that other repositories can use
 in their own tests.
 
 ## Layout and build
@@ -102,6 +103,7 @@ and fake MCP server scripts. Checks:
 - contracts validate valid/invalid fixtures with line numbers (including card events).
 
 ## Status
+- 2026-10-11: v0.1.3 released. Added "personal-data" shared contract with machine-readable patterns.json, canonical ignore patterns for Vega (.vega/), Aurora (progress.jsonl), Orion (orion-attempts.jsonl), and Polaris (captures, cache), automated .gitignore validation CLI/MCP with parent directory and wildcard support, and SmartDrive-OS managed block alignment.
 - 2026-10-11: v0.1.2 released. Added "card" event to aurora-progress-event.v1 contract for Vega FSRS memory engine integration, multi-server unregister with atomic single-write per file and pre-run backup, and --forget manifest removal.
 - 2026-10-11: v0.1.1 released. Fixed backups to be fully reversible with single backup/write per run, split `antigravity-cli` agent target, compact doctor reports with grouped unmanaged servers and empty manifest handling.
 - 2026-10-11: v0.1.0 built and verified with TypeScript typecheck, e2e integration tests, stdio health checks, drift doctor, and shared contract validation.

@@ -1,0 +1,12 @@
+# Valid .gitignore covering all personal-data contract patterns
+node_modules/
+dist/
+
+# >>> smart-drive managed >>>
+.vega/
+**/progress.jsonl
+aurora-progress-*.jsonl
+orion-attempts.jsonl
+**/polaris/captures/
+**/polaris/.cache/
+# <<< smart-drive managed <<<

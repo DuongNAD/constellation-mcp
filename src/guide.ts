@@ -131,8 +131,9 @@ Constellation maintains the shared specifications that keep ecosystem tools alig
 2. \`learning-units\`: Standard folder markers (course.json, deck.json, polaris/brief.json) and SmartDrive SSD protection rules.
 3. \`post-write-hook\`: Debounced \`smart-drive update <dir> --quiet\` notification hook.
 4. \`source-labels\`: "Khóa học" / "Mở rộng" / "chưa xác minh" evidence labels.
+5. \`personal-data\`: Canonical ignore patterns for personal learning data (.vega/, **/progress.jsonl, aurora-progress-*.jsonl, orion-attempts.jsonl) and third-party/regenerable files (**/polaris/captures/, **/polaris/.cache/).
 
-Use \`eco_contracts\` to view schemas or validate .jsonl event files.`,
+Use \`eco_contracts\` to view schemas or validate data files (.jsonl events, .gitignore patterns).`,
 
   rules: `# Safety & Operating Rules
 

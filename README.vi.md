@@ -49,10 +49,11 @@ flowchart TD
 
 | Máy chủ / Công cụ | Mã nguồn (Repo) | Mục đích | Hợp đồng dùng chung |
 |---|---|---|---|
-| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Thiết kế lộ trình học, tra cứu dữ liệu, lịch ôn tập ngắt quãng | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels` |
-| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Slide thuyết trình, bài tập tương tác, slide thẻ SRS | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels` |
-| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | Bộ nhớ thuật toán FSRS (`vega_sync`) | `aurora-progress-event.v1` (sự kiện `card`) |
-| **SmartDrive-OS** | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) | Quản trị SSD, tìm kiếm ngữ nghĩa BM25/vector | `learning-units`, `post-write-hook` |
+| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Thiết kế lộ trình học, tra cứu dữ liệu, lịch ôn tập ngắt quãng | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data` |
+| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Slide thuyết trình, bài tập tương tác, slide thẻ SRS | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data` |
+| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | Bộ nhớ thuật toán FSRS (`vega_sync`) | `aurora-progress-event.v1` (sự kiện `card`), `personal-data` |
+| **SmartDrive-OS** | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) | Quản trị SSD, tìm kiếm ngữ nghĩa BM25/vector | `learning-units`, `post-write-hook`, `personal-data` |
+| **Orion** | [orion-mcp](https://github.com/DuongNAD/orion-mcp) | Kiểm chứng giả thuyết và bài thí nghiệm tương tác | `personal-data` |
 | **mcp-agy** | [mcp-agy](https://github.com/DuongNAD/mcp-agy) | Cổng ủy quyền Google Antigravity cho subagent | — |
 
 ---
@@ -64,7 +65,7 @@ Khi vận hành nhiều MCP server trên các công cụ lập trình khác nhau
 2. Các agent khác nhau có thể ghi đè làm lệch hoặc mất cấu hình của nhau.
 3. Khi mở hội thoại trước khi server khởi động xong, agent báo lỗi không liên kết được công cụ.
 4. Các subagent không giao diện (headless như `mcp-agy`) cần cấu hình gọn nhẹ, không muốn nạp toàn bộ công cụ IDE.
-5. Các hợp đồng chung giữa các dự án (như sự kiện tiến độ v1, đánh dấu bài học, hook sau khi ghi, nhãn nguồn tài liệu) nằm rải rác.
+5. Các hợp đồng chung giữa các dự án (như sự kiện tiến độ v1, đánh dấu bài học, hook sau khi ghi, nhãn nguồn tài liệu, mẫu loại trừ dữ liệu cá nhân) nằm rải rác.
 
 Constellation hợp nhất toàn bộ cấu hình, kiểm tra và bảo trì vào một nguồn chân lý duy nhất.
 
@@ -158,6 +159,9 @@ node dist/constellation.mjs doctor
 
 # Kiểm định hợp đồng sự kiện
 node dist/constellation.mjs contracts validate aurora-progress-event.v1 contracts/fixtures/valid-progress.jsonl
+
+# Kiểm định tệp .gitignore theo hợp đồng dữ liệu cá nhân
+node dist/constellation.mjs contracts validate personal-data .gitignore
 ```
 
 ---
@@ -168,11 +172,17 @@ node dist/constellation.mjs contracts validate aurora-progress-event.v1 contract
 2. [`learning-units`](contracts/learning-units/README.md): Quy chuẩn đánh dấu thư mục học tập (`course.json`, `deck.json`, `polaris/brief.json`) và quy tắc bảo vệ của SmartDrive.
 3. [`post-write-hook`](contracts/post-write-hook/README.md): Cơ chế thông báo cập nhật ngầm `smart-drive update <dir> --quiet`.
 4. [`source-labels`](contracts/source-labels/README.md): Quy ước nhãn tài liệu "Khóa học" / "Mở rộng" / "chưa xác minh".
+5. [`personal-data`](contracts/personal-data/README.md): Các mẫu loại trừ chuẩn (canonical ignore patterns) cho dữ liệu học tập cá nhân nhạy cảm (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`) và tài nguyên bên thứ ba/tạo lại được (`**/polaris/captures/`, `**/polaris/.cache/`). Đi kèm bộ kiểm định `.gitignore` tự động.
 
 ---
 
 ## Lịch sử phiên bản
 
+- **0.1.3** (2026-10-11):
+  - **Hợp đồng dữ liệu cá nhân (`personal-data`)**: Bổ sung hợp đồng dùng chung và công cụ kiểm định `.gitignore` tự động cho dữ liệu học tập cá nhân (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`) và tệp bên thứ ba/tạo lại được (`**/polaris/captures/`, `**/polaris/.cache/`).
+  - **Đặc tả mẫu máy đọc được**: Bổ sung `contracts/personal-data/patterns.json` với dự án sở hữu, giải thích mức độ nhạy cảm và hướng dẫn gỡ bỏ khỏi git (`git rm --cached`).
+  - **Đồng bộ công cụ**: Chuẩn hóa khối quản lý tự động cho SmartDrive-OS (`smart-drive gitignore apply`) và ghi nhận cơ chế Polaris tự động sinh `polaris/.gitignore`.
+  - **Kiểm định CLI & MCP**: Lệnh `constellation contracts validate personal-data <path-to-.gitignore>` hỗ trợ khớp thư mục cha bao quát và khớp mẫu ký tự đại diện wildcard.
 - **0.1.2** (2026-10-11):
   - **Hợp đồng `aurora-progress-event.v1` (sự kiện `card`)**: Bổ sung sự kiện thẻ ghi nhớ SRS (`card`, `rating`: again/hard/good/easy, `ms` tùy chọn) phát ra từ slide `srs` của Aurora cho công cụ ghi nhớ Vega FSRS.
   - **Hủy đăng ký nhiều máy chủ & Quên khỏi manifest**: `constellation unregister a b c` / `eco_unregister {servers}` hỗ trợ hủy đăng ký hàng loạt, ghi tệp duy nhất 1 lần với bản sao lưu trước phiên chạy; tùy chọn `--forget` / `{forget: true}` đồng thời xóa máy chủ khỏi `ecosystem.json`.

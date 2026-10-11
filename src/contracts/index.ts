@@ -6,18 +6,32 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ContractInfo, ContractValidationResult } from "../types.js";
 import { validateProgressFile } from "./progress-event.js";
+import { validatePersonalDataGitignore } from "./personal-data.js";
 
 export * from "./progress-event.js";
+export * from "./personal-data.js";
 export * from "./generate-schema.js";
 
-const CONTRACT_ROOT = resolve(
-  typeof __dirname !== "undefined"
-    ? __dirname
-    : dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "contracts",
-);
+function findContractRoot(): string {
+  const base = resolve(
+    typeof __dirname !== "undefined"
+      ? __dirname
+      : dirname(fileURLToPath(import.meta.url)),
+  );
+  const candidates = [
+    resolve(base, "..", "contracts"),
+    resolve(base, "..", "..", "contracts"),
+    resolve(process.cwd(), "contracts"),
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      return c;
+    }
+  }
+  return candidates[0]!;
+}
+
+const CONTRACT_ROOT = findContractRoot();
 
 export const CONTRACTS: Record<string, ContractInfo> = {
   "aurora-progress-event.v1": {
@@ -53,6 +67,15 @@ export const CONTRACTS: Record<string, ContractInfo> = {
     type: "convention",
     hasValidator: false,
   },
+  "personal-data": {
+    name: "personal-data",
+    title: "Personal Learning Data & Sensitive Files Ignore Contract",
+    description:
+      "Canonical ignore patterns for sensitive personal learning data (Vega memory, Aurora progress events, Orion attempts) and third-party/regenerable files (Polaris captures, cache).",
+    type: "data",
+    schemaPath: join(CONTRACT_ROOT, "personal-data", "patterns.json"),
+    hasValidator: true,
+  },
 };
 
 export function listContracts(): ContractInfo[] {
@@ -79,6 +102,9 @@ export function validateContract(name: string, filePath: string): ContractValida
   if (norm === "aurora-progress-event.v1" || norm === "progress-event") {
     return validateProgressFile(filePath);
   }
+  if (norm === "personal-data" || norm === "personal" || norm === "gitignore") {
+    return validatePersonalDataGitignore(filePath);
+  }
 
   return {
     ok: false,
@@ -88,7 +114,7 @@ export function validateContract(name: string, filePath: string): ContractValida
     validLines: 0,
     errors: [
       {
-        message: `Contract '${name}' does not have an automated data validator (type: ${CONTRACTS[name]?.type ?? "unknown"}). Available validator: 'aurora-progress-event.v1'`,
+        message: `Contract '${name}' does not have an automated data validator (type: ${CONTRACTS[name]?.type ?? "unknown"}). Available validators: 'aurora-progress-event.v1', 'personal-data'`,
       },
     ],
   };

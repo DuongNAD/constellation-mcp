@@ -1,0 +1,56 @@
+{
+  "version": "1",
+  "contract": "personal-data",
+  "title": "Personal Learning Data & Sensitive Files Ignore Contract",
+  "description": "Canonical ignore patterns for sensitive personal learning data and third-party/regenerable files that must never be committed to a public repository.",
+  "patterns": [
+    {
+      "pattern": ".vega/",
+      "category": "personal",
+      "owner": "vega",
+      "ownerProject": "Vega (vega-mcp)",
+      "description": "Vega memory collection and review log (flashcard decks, scheduling state, FSRS intervals, private study ratings and history).",
+      "remediation": "Untrack with 'git rm -r --cached .vega/' then commit; consider rewriting git history if pushed publicly."
+    },
+    {
+      "pattern": "**/progress.jsonl",
+      "category": "personal",
+      "owner": "aurora-slides",
+      "ownerProject": "Aurora Slides (aurora-slides-mcp) / Vega / Polaris",
+      "description": "Aurora learning events: quiz answers, predictions, recall outcomes, missed stations, and timestamps.",
+      "remediation": "Untrack with 'git rm --cached **/progress.jsonl' then commit; check commit history if published."
+    },
+    {
+      "pattern": "aurora-progress-*.jsonl",
+      "category": "personal",
+      "owner": "aurora-slides",
+      "ownerProject": "Aurora Slides (aurora-slides-mcp)",
+      "description": "Exported or dated Aurora learning progress event logs containing personal answers and scores.",
+      "remediation": "Untrack with 'git rm --cached aurora-progress-*.jsonl' then commit; check history if published."
+    },
+    {
+      "pattern": "orion-attempts.jsonl",
+      "category": "personal",
+      "owner": "orion",
+      "ownerProject": "Orion (orion-mcp)",
+      "description": "Orion attempt history with predictions, self-evaluation records, and learning attempts.",
+      "remediation": "Untrack with 'git rm --cached orion-attempts.jsonl' then commit; check history if published."
+    },
+    {
+      "pattern": "**/polaris/captures/",
+      "category": "third-party",
+      "owner": "polaris",
+      "ownerProject": "Polaris (polaris-mcp)",
+      "description": "Captured full-text web pages, PDFs, and video transcripts (copyrighted third-party sources and study copies).",
+      "remediation": "Untrack with 'git rm -r --cached **/polaris/captures/' then commit; rewrite git history if copyrighted."
+    },
+    {
+      "pattern": "**/polaris/.cache/",
+      "category": "regenerable",
+      "owner": "polaris",
+      "ownerProject": "Polaris (polaris-mcp)",
+      "description": "Cached search and API responses (OpenAlex, arXiv, CrossRef, etc.) which can be regenerated on demand.",
+      "remediation": "Untrack with 'git rm -r --cached **/polaris/.cache/' then commit."
+    }
+  ]
+}

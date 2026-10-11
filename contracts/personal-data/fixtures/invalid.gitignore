@@ -1,0 +1,5 @@
+# Incomplete .gitignore missing several personal-data contract patterns
+node_modules/
+dist/
+.vega/
+**/progress.jsonl

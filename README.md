@@ -49,10 +49,11 @@ flowchart TD
 
 | Server / Tool | Repository | Purpose | Shared Contracts |
 |---|---|---|---|
-| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Course architect, evidence research, spaced reviews | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels` |
-| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Keynote-style decks, interactive recall, SRS slides | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels` |
-| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | FSRS spaced repetition memory engine (`vega_sync`) | `aurora-progress-event.v1` (`card` event) |
-| **SmartDrive-OS** | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) | SSD workspace governance, BM25/vector search | `learning-units`, `post-write-hook` |
+| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Course architect, evidence research, spaced reviews | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data` |
+| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Keynote-style decks, interactive recall, SRS slides | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data` |
+| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | FSRS spaced repetition memory engine (`vega_sync`) | `aurora-progress-event.v1` (`card` event), `personal-data` |
+| **SmartDrive-OS** | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) | SSD workspace governance, BM25/vector search | `learning-units`, `post-write-hook`, `personal-data` |
+| **Orion** | [orion-mcp](https://github.com/DuongNAD/orion-mcp) | Interactive hypothesis & lab verification | `personal-data` |
 | **mcp-agy** | [mcp-agy](https://github.com/DuongNAD/mcp-agy) | Google Antigravity delegation gateway | — |
 
 ---
@@ -64,7 +65,7 @@ When orchestrating multiple MCP servers across different coding assistants, seve
 2. Different IDE agents overwrite or desynchronize config files.
 3. Starting conversations before a server finishes initialization leads to missing tool binding.
 4. Headless subagents (like `mcp-agy`) need lightweight configurations without every heavy GUI tool loaded.
-5. Shared contracts between tools (e.g. progress event v1, learning-unit markers, post-write hooks, and source labels) drift if not anchored in a single source of truth.
+5. Shared contracts between tools (e.g. progress event v1, learning-unit markers, post-write hooks, source labels, and personal-data ignore patterns) drift if not anchored in a single source of truth.
 
 Constellation unifies all configuration and verification into a single, automated control plane.
 
@@ -158,6 +159,9 @@ node dist/constellation.mjs doctor
 
 # Validate contract fixtures
 node dist/constellation.mjs contracts validate aurora-progress-event.v1 contracts/fixtures/valid-progress.jsonl
+
+# Validate .gitignore against personal data contract
+node dist/constellation.mjs contracts validate personal-data .gitignore
 ```
 
 ---
@@ -168,11 +172,17 @@ node dist/constellation.mjs contracts validate aurora-progress-event.v1 contract
 2. [`learning-units`](contracts/learning-units/README.md): Protected folder markers (`course.json`, `deck.json`, `polaris/brief.json`) and SmartDrive SSD rules.
 3. [`post-write-hook`](contracts/post-write-hook/README.md): Debounced `smart-drive update <dir> --quiet` notification standard.
 4. [`source-labels`](contracts/source-labels/README.md): "Khóa học" / "Mở rộng" / "chưa xác minh" label mappings.
+5. [`personal-data`](contracts/personal-data/README.md): Canonical ignore patterns for sensitive personal learning data (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`) and third-party/regenerable files (`**/polaris/captures/`, `**/polaris/.cache/`). Includes automated `.gitignore` validator.
 
 ---
 
 ## Version History
 
+- **0.1.3** (2026-10-11):
+  - **Personal Data & Sensitive Files Contract (`personal-data`)**: Added shared contract and automated `.gitignore` validator covering personal learning data (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`) and third-party/regenerable assets (`**/polaris/captures/`, `**/polaris/.cache/`).
+  - **Canonical Machine-Readable Patterns**: Added `contracts/personal-data/patterns.json` with project ownership, sensitivity rationale, and git untracking remediation (`git rm --cached`).
+  - **Tooling Alignment**: Standardized managed block integration for SmartDrive-OS (`smart-drive gitignore apply`) and documented Polaris automatic `polaris/.gitignore` creation.
+  - **CLI & MCP Gitignore Validation**: Added `constellation contracts validate personal-data <path-to-.gitignore>` with parent directory and wildcard pattern coverage checks.
 - **0.1.2** (2026-10-11):
   - **Active Recall SRS Card Contract**: Added `card` event type to `aurora-progress-event.v1` (`card`, `rating`: again/hard/good/easy, optional `ms`) emitted by Aurora Slides `srs` slide for Vega FSRS memory engine ingestion.
   - **Multi-Server Unregister & Manifest Forget**: `constellation unregister a b c` / `eco_unregister {servers}` batches unregistration across all target agents in a single write with pre-run backup; `--forget` / `{forget: true}` removes entries from `ecosystem.json`.
