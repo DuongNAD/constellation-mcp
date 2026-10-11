@@ -172,12 +172,15 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 2. [`learning-units`](contracts/learning-units/README.md): Quy chuẩn đánh dấu thư mục học tập (`course.json`, `deck.json`, `polaris/brief.json`) và quy tắc bảo vệ của SmartDrive.
 3. [`post-write-hook`](contracts/post-write-hook/README.md): Cơ chế thông báo cập nhật ngầm `smart-drive update <dir> --quiet`.
 4. [`source-labels`](contracts/source-labels/README.md): Quy ước nhãn tài liệu "Khóa học" / "Mở rộng" / "chưa xác minh".
-5. [`personal-data`](contracts/personal-data/README.md): Các mẫu loại trừ chuẩn (canonical ignore patterns) cho dữ liệu học tập cá nhân nhạy cảm (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`) và tài nguyên bên thứ ba/tạo lại được (`**/polaris/captures/`, `**/polaris/.cache/`). Đi kèm bộ kiểm định `.gitignore` tự động.
+5. [`personal-data`](contracts/personal-data/README.md): Các mẫu loại trừ chuẩn (canonical ignore patterns) cho dữ liệu học tập cá nhân nhạy cảm (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`, `.polaris/`) và tài nguyên bên thứ ba/tạo lại được (`**/polaris/captures/`, `**/polaris/.cache/`). Đi kèm bộ kiểm định `.gitignore` tự động.
 
 ---
 
 ## Lịch sử phiên bản
 
+- **0.1.4** (2026-10-11):
+  - **Hồ sơ học tập Polaris (`personal-data`)**: Bổ sung `.polaris/` làm mẫu loại trừ chuẩn thứ 7 vào hợp đồng `personal-data` (`contracts/personal-data/patterns.json`) bảo vệ tệp `<hub>/.polaris/learner.json` (khung giờ học, ngày bận, cam kết tuần, phương pháp học).
+  - **Cập nhật Fixtures & Bộ kiểm định**: Cập nhật fixture `.gitignore` hợp lệ bao quát đủ 7/7 mẫu và nâng cấp bộ kiểm tra e2e.
 - **0.1.3** (2026-10-11):
   - **Hợp đồng dữ liệu cá nhân (`personal-data`)**: Bổ sung hợp đồng dùng chung và công cụ kiểm định `.gitignore` tự động cho dữ liệu học tập cá nhân (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`) và tệp bên thứ ba/tạo lại được (`**/polaris/captures/`, `**/polaris/.cache/`).
   - **Đặc tả mẫu máy đọc được**: Bổ sung `contracts/personal-data/patterns.json` với dự án sở hữu, giải thích mức độ nhạy cảm và hướng dẫn gỡ bỏ khỏi git (`git rm --cached`).

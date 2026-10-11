@@ -237,7 +237,7 @@ try {
   // Test server identification and instructions
   const info = client.getServerVersion();
   ok("server identifies itself as constellation", info?.name === "constellation", `${info?.name} ${info?.version}`);
-  ok("server version is 0.1.3", info?.version === "0.1.3", info?.version);
+  ok("server version is 0.1.4", info?.version === "0.1.4", info?.version);
   const instructions = client.getInstructions() ?? "";
   ok("server sends instructions with workflow and rules", instructions.includes("Workflow:") && instructions.includes("Rules:"));
 
@@ -547,7 +547,7 @@ try {
   r = await call("eco_contracts", { action: "validate", name: "personal-data", file: validGitignoreFixture });
   ok(
     "contracts validate valid gitignore passes",
-    !r.isError && textOf(r).includes("PASSED") && textOf(r).includes("6/6 pattern(s) covered"),
+    !r.isError && textOf(r).includes("PASSED") && textOf(r).includes("7/7 pattern(s) covered"),
   );
 
   const invalidGitignoreFixture = join(ROOT, "contracts", "fixtures", "invalid.gitignore");
@@ -559,7 +559,8 @@ try {
       textOf(r).includes("aurora-progress-*.jsonl") &&
       textOf(r).includes("orion-attempts.jsonl") &&
       textOf(r).includes("**/polaris/captures/") &&
-      textOf(r).includes("**/polaris/.cache/"),
+      textOf(r).includes("**/polaris/.cache/") &&
+      textOf(r).includes(".polaris/"),
   );
 
   /* ───────── 11. CLI Integration Checks ───────── */
@@ -573,7 +574,7 @@ try {
 
   // Version command
   const verOut = execFileSync(process.execPath, [cliBin, "version"], { env: testEnv, encoding: "utf8" }).trim();
-  ok("CLI version prints 0.1.3", verOut === "0.1.3");
+  ok("CLI version prints 0.1.4", verOut === "0.1.4");
 
   // Status command
   const statusOut = execFileSync(process.execPath, [cliBin, "status"], { env: testEnv, encoding: "utf8" });
@@ -622,7 +623,7 @@ try {
   });
   ok(
     "CLI contracts validate valid gitignore passes",
-    valGitOut.includes("OK: Contract 'personal-data' valid (6/6 patterns covered)"),
+    valGitOut.includes("OK: Contract 'personal-data' valid (7/7 patterns covered)"),
   );
 
   // Validate invalid gitignore fixture via CLI
@@ -641,7 +642,8 @@ try {
         out.includes("aurora-progress-*.jsonl") &&
         out.includes("orion-attempts.jsonl") &&
         out.includes("**/polaris/captures/") &&
-        out.includes("**/polaris/.cache/"),
+        out.includes("**/polaris/.cache/") &&
+        out.includes(".polaris/"),
     );
   }
   ok("CLI contracts validate invalid gitignore exits non-zero", invalidGitFailedAsExpected);

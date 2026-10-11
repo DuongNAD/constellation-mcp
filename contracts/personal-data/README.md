@@ -17,6 +17,7 @@ When developing, taking courses, or collaborating in public or shared repositori
 | `orion-attempts.jsonl` | Personal learning data | Orion (`orion-mcp`) | Orion attempt history with hypothesis predictions, terminal experiment outcomes, self-evaluations, and failure logs. | `git rm --cached orion-attempts.jsonl` (commit removal; inspect history) |
 | `**/polaris/captures/` | Third-party / copyright | Polaris (`polaris-mcp`) | Full-text captured articles, downloaded PDFs, video transcripts, proprietary lecture notes used as research evidence. | `git rm -r --cached **/polaris/captures/` (commit removal; rewrite git history to avoid copyright infringement) |
 | `**/polaris/.cache/` | Regenerable cache | Polaris (`polaris-mcp`) | Raw query responses and HTTP payload caches from external APIs (OpenAlex, arXiv, CrossRef). Regenerable on demand. | `git rm -r --cached **/polaris/.cache/` (commit removal) |
+| `.polaris/` | Personal learning data | Polaris (`polaris-mcp`) | Learner profile with study time slots, blackout dates, commitments and study-method preferences (`learner.json`). | `git rm -r --cached .polaris/` (commit removal; check history if published) |
 
 ---
 
@@ -92,6 +93,18 @@ When developing, taking courses, or collaborating in public or shared repositori
   git commit -m "chore: untrack polaris cache"
   ```
 
+### 7. Polaris Learner Profile (`.polaris/`)
+- **Owner**: [Polaris MCP](https://github.com/DuongNAD/polaris-mcp)
+- **Path layout**: `<workspace>/.polaris/learner.json`
+- **Why sensitive**: Contains the learner's private study time slots, blackout dates, weekly commitments, and study-method preferences.
+- **Gitignore pattern**: `.polaris/`
+- **Remediation**:
+  ```bash
+  git rm -r --cached .polaris/
+  git commit -m "chore: untrack polaris learner profile"
+  ```
+  If published to a public repository, check commit history.
+
 ---
 
 ## Tooling Integration
@@ -107,6 +120,7 @@ aurora-progress-*.jsonl
 orion-attempts.jsonl
 **/polaris/captures/
 **/polaris/.cache/
+.polaris/
 # <<< smart-drive managed <<<
 ```
 
@@ -126,7 +140,7 @@ This acts as a second line of defense even if the workspace root `.gitignore` is
 
 ## Validation Algorithm & Matching Rules
 
-The Constellation contract validator checks whether a given `.gitignore` covers all 6 canonical patterns:
+The Constellation contract validator checks whether a given `.gitignore` covers all 7 canonical patterns:
 
 ```bash
 constellation contracts validate personal-data <path-to-.gitignore>

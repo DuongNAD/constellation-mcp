@@ -51,6 +51,14 @@
       "ownerProject": "Polaris (polaris-mcp)",
       "description": "Cached search and API responses (OpenAlex, arXiv, CrossRef, etc.) which can be regenerated on demand.",
       "remediation": "Untrack with 'git rm -r --cached **/polaris/.cache/' then commit."
+    },
+    {
+      "pattern": ".polaris/",
+      "category": "personal",
+      "owner": "polaris",
+      "ownerProject": "Polaris (polaris-mcp)",
+      "description": "Learner profile with study time slots, blackout dates, commitments and study-method preferences.",
+      "remediation": "Untrack with 'git rm -r --cached .polaris/' then commit; check history if published."
     }
   ]
 }

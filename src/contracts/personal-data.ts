@@ -62,6 +62,14 @@ export const PERSONAL_DATA_PATTERNS: PersonalDataPattern[] = [
     description: "Cached search and API responses (OpenAlex, arXiv, CrossRef) which can be regenerated.",
     remediation: "Untrack with 'git rm -r --cached **/polaris/.cache/' then commit.",
   },
+  {
+    pattern: ".polaris/",
+    category: "personal",
+    owner: "polaris",
+    ownerProject: "Polaris (polaris-mcp)",
+    description: "Learner profile with study time slots, blackout dates, commitments and study-method preferences.",
+    remediation: "Untrack with 'git rm -r --cached .polaris/' then commit; check history if published.",
+  },
 ];
 
 function globMatches(glob: string, text: string): boolean {
@@ -105,6 +113,10 @@ export function isPatternCoveredByRule(targetPattern: string, rule: string): boo
       if (cleanRule === ".vega") return true;
       break;
 
+    case ".polaris/":
+      if (cleanRule === ".polaris") return true;
+      break;
+
     case "**/progress.jsonl":
       if (cleanRule === "progress.jsonl") return true;
       break;
@@ -140,7 +152,7 @@ export function isPatternCoveredByRule(targetPattern: string, rule: string): boo
 
   // 3. Broader parent directory match (e.g. polaris/ or polaris/* covering polaris/captures)
   const dirRule = cleanRule.replace(/\/\*+$/, "");
-  if (dirRule.length > 0 && cleanTarget.startsWith(dirRule + "/")) {
+  if (dirRule.length > 0 && (cleanTarget === dirRule || cleanTarget.startsWith(dirRule + "/"))) {
     return true;
   }
 

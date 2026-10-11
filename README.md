@@ -172,12 +172,15 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 2. [`learning-units`](contracts/learning-units/README.md): Protected folder markers (`course.json`, `deck.json`, `polaris/brief.json`) and SmartDrive SSD rules.
 3. [`post-write-hook`](contracts/post-write-hook/README.md): Debounced `smart-drive update <dir> --quiet` notification standard.
 4. [`source-labels`](contracts/source-labels/README.md): "Khóa học" / "Mở rộng" / "chưa xác minh" label mappings.
-5. [`personal-data`](contracts/personal-data/README.md): Canonical ignore patterns for sensitive personal learning data (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`) and third-party/regenerable files (`**/polaris/captures/`, `**/polaris/.cache/`). Includes automated `.gitignore` validator.
+5. [`personal-data`](contracts/personal-data/README.md): Canonical ignore patterns for sensitive personal learning data (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`, `.polaris/`) and third-party/regenerable files (`**/polaris/captures/`, `**/polaris/.cache/`). Includes automated `.gitignore` validator.
 
 ---
 
 ## Version History
 
+- **0.1.4** (2026-10-11):
+  - **Polaris Learner Profile Contract**: Added `.polaris/` as the 7th canonical ignore pattern to `personal-data` contract (`contracts/personal-data/patterns.json`) covering `<hub>/.polaris/learner.json` (study slots, blackout dates, commitments, study-method preferences).
+  - **Updated Test Fixtures & Validator**: Updated valid `.gitignore` fixtures to cover all 7 patterns and adjusted validation expectations to 7/7 patterns.
 - **0.1.3** (2026-10-11):
   - **Personal Data & Sensitive Files Contract (`personal-data`)**: Added shared contract and automated `.gitignore` validator covering personal learning data (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`) and third-party/regenerable assets (`**/polaris/captures/`, `**/polaris/.cache/`).
   - **Canonical Machine-Readable Patterns**: Added `contracts/personal-data/patterns.json` with project ownership, sensitivity rationale, and git untracking remediation (`git rm --cached`).

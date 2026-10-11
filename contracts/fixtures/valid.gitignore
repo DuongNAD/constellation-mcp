@@ -9,4 +9,5 @@ aurora-progress-*.jsonl
 orion-attempts.jsonl
 **/polaris/captures/
 **/polaris/.cache/
+.polaris/
 # <<< smart-drive managed <<<

@@ -71,7 +71,7 @@ export const CONTRACTS: Record<string, ContractInfo> = {
     name: "personal-data",
     title: "Personal Learning Data & Sensitive Files Ignore Contract",
     description:
-      "Canonical ignore patterns for sensitive personal learning data (Vega memory, Aurora progress events, Orion attempts) and third-party/regenerable files (Polaris captures, cache).",
+      "Canonical ignore patterns for sensitive personal learning data (Vega memory, Aurora progress events, Orion attempts, Polaris learner profile) and third-party/regenerable files (Polaris captures, cache).",
     type: "data",
     schemaPath: join(CONTRACT_ROOT, "personal-data", "patterns.json"),
     hasValidator: true,
