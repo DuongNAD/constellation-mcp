@@ -1,6 +1,10 @@
 [English](README.md) | **Tiếng Việt**
 
+<p align="center"><img src="docs/banner.jpg" alt="Constellation MCP — mạng lưới các vì sao kết nối trong vũ trụ" width="100%"></p>
+
 # Constellation MCP
+
+*Các vì sao liên kết thành một chòm sao, tựa như các máy chủ kết nối thành một hệ sinh thái duy nhất.*
 
 Trung tâm điều khiển hệ sinh thái MCP cho người học: một tệp cấu hình máy chủ tập trung (manifest), một lệnh đăng ký vào tất cả các coding agent (Claude Code, Google Antigravity, Antigravity CLI, Cursor, Codex), kiểm tra sức khỏe tự động, phát hiện lệch cấu hình (drift doctor), cập nhật an toàn và quản lý các hợp đồng giao tiếp chung.
 

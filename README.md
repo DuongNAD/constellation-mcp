@@ -1,6 +1,10 @@
 [Tiếng Việt](README.vi.md) | **English**
 
+<p align="center"><img src="docs/banner.jpg" alt="Constellation MCP — connected stars in a cosmic network" width="100%"></p>
+
 # Constellation MCP
+
+*Stars joined into one figure, like servers joined into one ecosystem.*
 
 Control plane of the learner's MCP ecosystem: one manifest of servers, one command to register them across coding agents (Claude Code, Google Antigravity, Antigravity CLI, Cursor, Codex), automated health checks, drift doctor, safe updates, and shared contracts.
 
