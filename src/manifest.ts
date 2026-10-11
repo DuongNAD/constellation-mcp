@@ -11,6 +11,7 @@ import {
   getConstellationHome,
   isSecretKey,
   isSecretReference,
+  stripBom,
 } from "./util.js";
 
 export function getManifestPath(): string {
@@ -26,7 +27,7 @@ export function loadSecrets(): Record<string, string> {
   if (!existsSync(secretsFile)) return {};
   try {
     const raw = readFileSync(secretsFile, "utf8");
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(stripBom(raw));
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       return parsed as Record<string, string>;
     }
@@ -43,7 +44,7 @@ export function loadManifest(): Manifest {
   }
   try {
     const raw = readFileSync(manifestFile, "utf8");
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(stripBom(raw));
     if (parsed && typeof parsed === "object" && Array.isArray(parsed.servers)) {
       return parsed as Manifest;
     }

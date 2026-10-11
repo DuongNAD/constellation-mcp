@@ -26,8 +26,9 @@ described separately in three READMEs. Constellation makes all of that one sourc
    only the entries it manages. Write each config file at most once per run.
 2. Never leak secrets: env values whose name contains KEY, TOKEN, SECRET, PASSWORD or AUTH are masked in every output
    and are never copied into the manifest or the repository; existing env blocks in agent configs are preserved.
-3. Idempotent and explainable: every write has a dry run that prints the exact diff; re-running changes nothing.
-4. Same toolchain discipline: TypeScript, one bundled dist/constellation.mjs, toolchain outside the project
+3. BOM-tolerant and credential-safe: strip leading UTF-8 BOM (`\uFEFF`) on reads; doctor reports a notice; register rewrites cleanly without a BOM. Preserve and merge unmanaged env keys present in agent configs so local credentials are never erased.
+4. Idempotent and explainable: every write has a dry run that prints the exact diff; re-running changes nothing.
+5. Same toolchain discipline: TypeScript, one bundled dist/constellation.mjs, toolchain outside the project
    (CONSTELLATION_TOOLCHAIN, falling back to the Aurora toolchain), no node_modules on D: (exFAT, 512 KB clusters),
    no recursive scans of D:.
 
@@ -62,7 +63,7 @@ Reference for config formats and edge cases (read only): SmartDrive-OS smart_dri
   per file and writes each file at most once with a single pre-run backup; `--forget` removes from manifest.
 - `eco_health {servers?}`: start each server over stdio with the MCP SDK client, initialize, list tools; report
   start-up time, server name/version, tool count, errors; time-boxed; servers are stopped afterwards.
-- `eco_doctor`: drift between agent configs and the manifest (including the Antigravity copies), entries whose command
+- `eco_doctor`: drift between agent configs and the manifest (including Antigravity copies and environment variable drift reported by key name only), file integrity diagnostics (UTF-8 BOM notice, single parse error reporting per file to avoid false missing server errors), entries whose command
   or script path does not exist, duplicate names, grouped unmanaged servers (one line per agent), clean notice when
   manifest is empty suggesting `import`, and the Antigravity note (tools bind when a conversation starts).
 - `eco_update {servers?, pull?, build?, test?}`: for git-backed servers: `git pull --ff-only` only when the tree is
@@ -103,6 +104,7 @@ and fake MCP server scripts. Checks:
 - contracts validate valid/invalid fixtures with line numbers (including card events).
 
 ## Status
+- 2026-10-11: v0.1.5 released. UTF-8 BOM tolerance on JSON reads with doctor notices and clean BOM-less rewrites on register; resilient file-level parse error reporting without cascading false missing server warnings; env drift detection reporting unmanaged server env keys by name only (values masked) with fix instructions; registration merges and preserves unmanaged env keys without data loss.
 - 2026-10-11: v0.1.4 released. Added ".polaris/" as 7th canonical ignore pattern to personal-data contract protecting Polaris learner profiles (<hub>/.polaris/learner.json), updated valid .gitignore fixtures, docs, and e2e test expectations (7/7 patterns).
 - 2026-10-11: v0.1.3 released. Added "personal-data" shared contract with machine-readable patterns.json, canonical ignore patterns for Vega (.vega/), Aurora (progress.jsonl), Orion (orion-attempts.jsonl), and Polaris (captures, cache), automated .gitignore validation CLI/MCP with parent directory and wildcard support, and SmartDrive-OS managed block alignment.
 - 2026-10-11: v0.1.2 released. Added "card" event to aurora-progress-event.v1 contract for Vega FSRS memory engine integration, multi-server unregister with atomic single-write per file and pre-run backup, and --forget manifest removal.

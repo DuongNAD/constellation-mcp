@@ -23,8 +23,9 @@ export function buildServerEntryConfig(
     args: [...server.args],
   };
 
+  const env: Record<string, string> = {};
+
   if (server.env && Object.keys(server.env).length > 0) {
-    const env: Record<string, string> = {};
     for (const [k, v] of Object.entries(server.env)) {
       if (isSecretKey(k) && v.startsWith("${secret:") && existingConfig?.env?.[k]) {
         // Keep existing secret in agent config if present
@@ -33,10 +34,19 @@ export function buildServerEntryConfig(
         env[k] = v;
       }
     }
+  }
+
+  // Preserve and merge any env keys that exist in agent config but not in manifest
+  if (existingConfig?.env && Object.keys(existingConfig.env).length > 0) {
+    for (const [k, v] of Object.entries(existingConfig.env)) {
+      if (!(k in env)) {
+        env[k] = v;
+      }
+    }
+  }
+
+  if (Object.keys(env).length > 0) {
     result.env = env;
-  } else if (existingConfig?.env && Object.keys(existingConfig.env).length > 0) {
-    // Preserve existing env if not specified in server
-    result.env = existingConfig.env;
   }
 
   return result;
@@ -56,7 +66,7 @@ function normalizeEnv(env: Record<string, string> | undefined): Record<string, s
 export function compareServerConfigs(
   manifestServer: ServerEntry,
   agentServer: AgentServerConfig,
-): { matches: boolean; differences: string[] } {
+): { matches: boolean; differences: string[]; extraEnvKeys: string[] } {
   const differences: string[] = [];
 
   if (manifestServer.command !== agentServer.command) {
@@ -67,8 +77,8 @@ export function compareServerConfigs(
     differences.push(`args differ: manifest=[${manifestServer.args.join(", ")}] vs agent=[${agentServer.args.join(", ")}]`);
   }
 
+  const agentEnv = agentServer.env ?? {};
   if (manifestServer.env) {
-    const agentEnv = agentServer.env ?? {};
     for (const [k, v] of Object.entries(manifestServer.env)) {
       if (isSecretKey(k)) {
         if (!(k in agentEnv)) {
@@ -82,9 +92,14 @@ export function compareServerConfigs(
     }
   }
 
+  // Detect env keys in agent config that are NOT in manifest
+  const manifestEnv = manifestServer.env ?? {};
+  const extraEnvKeys = Object.keys(agentEnv).filter((k) => !(k in manifestEnv));
+
   return {
-    matches: differences.length === 0,
+    matches: differences.length === 0 && extraEnvKeys.length === 0,
     differences,
+    extraEnvKeys,
   };
 }
 
@@ -94,8 +109,18 @@ export function formatConfigDiff(
   serverName: string,
   before: AgentServerConfig | undefined,
   after: AgentServerConfig | undefined,
+  manifestServer?: ServerEntry,
 ): DiffEntry {
   const changes: string[] = [];
+  const manifestEnv = manifestServer?.env ?? {};
+  const unmanagedKeys = Object.keys(after?.env ?? {}).filter((k) => !(k in manifestEnv));
+  const unmanagedNotes: string[] = [];
+  if (unmanagedKeys.length > 0) {
+    for (const k of unmanagedKeys) {
+      const maskedVal = isSecretKey(k) ? "***" : (after?.env?.[k] ?? "***");
+      unmanagedNotes.push(`kept unmanaged env key '${k}' (${maskedVal})`);
+    }
+  }
 
   if (!before && after) {
     const maskedAfter = {
@@ -103,6 +128,7 @@ export function formatConfigDiff(
       env: normalizeEnv(maskSecretsInEnv(after.env)),
     };
     changes.push(`+ Add server '${serverName}': ${JSON.stringify(maskedAfter)}`);
+    unmanagedNotes.forEach((n) => changes.push(`  ${n}`));
     return {
       agent: agentName,
       file: filePath,
@@ -142,7 +168,7 @@ export function formatConfigDiff(
         agent: agentName,
         file: filePath,
         action: "noop",
-        changes: [`No change for server '${serverName}'`],
+        changes: unmanagedNotes.length > 0 ? unmanagedNotes : [`No change for server '${serverName}'`],
       };
     }
 
@@ -156,6 +182,7 @@ export function formatConfigDiff(
     if (!deepEqual(maskedBefore.env, maskedAfter.env)) {
       changes.push(`  env: ${JSON.stringify(maskedBefore.env)} -> ${JSON.stringify(maskedAfter.env)}`);
     }
+    unmanagedNotes.forEach((n) => changes.push(`  ${n}`));
 
     return {
       agent: agentName,

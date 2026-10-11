@@ -4,7 +4,7 @@
  *   and ~/.gemini/antigravity-ide mcp_config.json in sync.
  * - AntigravityCliAgentManager ("antigravity-cli"): manages ~/.gemini/antigravity-cli/mcp_config.json.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { AgentServerConfig, DiffEntry, DoctorIssue, ServerEntry } from "../types.js";
 import {
@@ -13,6 +13,7 @@ import {
   deepEqual,
   detectLineEnding,
   getHomeDir,
+  readJsonFile,
 } from "../util.js";
 import {
   AgentManager,
@@ -21,32 +22,39 @@ import {
   formatConfigDiff,
 } from "./base.js";
 
-function loadRawJsonConfig(filePath: string): {
+interface RawJsonConfigResult {
   data: { mcpServers?: Record<string, AgentServerConfig>; [key: string]: unknown };
   lineEnding: "\r\n" | "\n";
   exists: boolean;
-} {
-  if (!existsSync(filePath)) {
+  hasBom: boolean;
+  parseError?: Error;
+}
+
+function loadRawJsonConfig(filePath: string): RawJsonConfigResult {
+  const res = readJsonFile<Record<string, unknown>>(filePath);
+  if (!res.exists) {
     return {
       data: { mcpServers: {} },
-      lineEnding: process.platform === "win32" ? "\r\n" : "\n",
+      lineEnding: res.lineEnding,
       exists: false,
+      hasBom: false,
     };
   }
-  try {
-    const content = readFileSync(filePath, "utf8");
-    const lineEnding = detectLineEnding(content);
-    const parsed = JSON.parse(content);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return { data: parsed, lineEnding, exists: true };
-    }
-  } catch {
-    // ignore
+  if (res.parseError) {
+    return {
+      data: { mcpServers: {} },
+      lineEnding: res.lineEnding,
+      exists: true,
+      hasBom: res.hasBom,
+      parseError: res.parseError,
+    };
   }
+  const data = res.data && typeof res.data === "object" && !Array.isArray(res.data) ? res.data : { mcpServers: {} };
   return {
-    data: { mcpServers: {} },
-    lineEnding: process.platform === "win32" ? "\r\n" : "\n",
-    exists: false,
+    data,
+    lineEnding: res.lineEnding,
+    exists: true,
+    hasBom: res.hasBom,
   };
 }
 
@@ -76,7 +84,8 @@ export class AntigravityAgentManager implements AgentManager {
     const servers = new Map<string, AgentServerConfig>();
     for (const p of this.getConfigPaths()) {
       if (existsSync(p)) {
-        const { data } = loadRawJsonConfig(p);
+        const { data, parseError } = loadRawJsonConfig(p);
+        if (parseError) continue;
         if (data.mcpServers && typeof data.mcpServers === "object") {
           for (const [name, cfg] of Object.entries(data.mcpServers)) {
             if (cfg && typeof cfg === "object" && cfg.command && Array.isArray(cfg.args)) {
@@ -97,14 +106,23 @@ export class AntigravityAgentManager implements AgentManager {
     const targetPaths = this.getTargetConfigPaths(true);
 
     for (const filePath of targetPaths) {
-      const { data, lineEnding } = loadRawJsonConfig(filePath);
+      const { data, lineEnding, hasBom } = loadRawJsonConfig(filePath);
       const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
-      let fileChanged = false;
+      let fileChanged = hasBom;
+
+      if (hasBom) {
+        diffs.push({
+          agent: this.displayName,
+          file: filePath,
+          action: "update",
+          changes: ["Rewrite file without UTF-8 BOM"],
+        });
+      }
 
       for (const server of serverList) {
         const existing = mcpServers[server.name];
         const newConfig = buildServerEntryConfig(server, existing);
-        const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
+        const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig, server);
         diffs.push(diff);
 
         if (diff.action !== "noop") {
@@ -188,7 +206,11 @@ export class AntigravityAgentManager implements AgentManager {
     // Check each file against manifest
     const fileConfigs = new Map<string, AgentServerConfig | undefined>();
     for (const p of paths) {
-      const { data } = loadRawJsonConfig(p);
+      const { data, parseError } = loadRawJsonConfig(p);
+      if (parseError) {
+        // Skip drift check for broken config file; doctor reports single parse error
+        continue;
+      }
       const cfg = data.mcpServers?.[server.name];
       fileConfigs.set(p, cfg);
 
@@ -203,17 +225,32 @@ export class AntigravityAgentManager implements AgentManager {
           fix: `Run 'eco_register' to sync across all Antigravity configs`,
         });
       } else {
-        const { matches, differences } = compareServerConfigs(server, cfg);
+        const { matches, differences, extraEnvKeys } = compareServerConfigs(server, cfg);
         if (!matches) {
-          issues.push({
-            severity: "error",
-            category: "drift",
-            agent: this.displayName,
-            server: server.name,
-            file: p,
-            message: `Server '${server.name}' in ${p} differs from manifest: ${differences.join("; ")}`,
-            fix: `Run 'eco_register' to update agent config from manifest`,
-          });
+          if (differences.length > 0) {
+            issues.push({
+              severity: "error",
+              category: "drift",
+              agent: this.displayName,
+              server: server.name,
+              file: p,
+              message: `Server '${server.name}' in ${p} differs from manifest: ${differences.join("; ")}`,
+              fix: `Run 'eco_register' to update agent config from manifest`,
+            });
+          }
+          if (extraEnvKeys && extraEnvKeys.length > 0) {
+            for (const key of extraEnvKeys) {
+              issues.push({
+                severity: "error",
+                category: "drift",
+                agent: this.displayName,
+                server: server.name,
+                file: p,
+                message: `Server '${server.name}' in ${p} has extra env key '${key}' not in manifest`,
+                fix: `add \${secret:${key}} to the server's env in ecosystem.json and the value to ~/.constellation/secrets.json or the process environment`,
+              });
+            }
+          }
         }
       }
     }
@@ -267,7 +304,8 @@ export class AntigravityCliAgentManager implements AgentManager {
     const servers = new Map<string, AgentServerConfig>();
     const filePath = this.getConfigFile();
     if (existsSync(filePath)) {
-      const { data } = loadRawJsonConfig(filePath);
+      const { data, parseError } = loadRawJsonConfig(filePath);
+      if (parseError) return servers;
       if (data.mcpServers && typeof data.mcpServers === "object") {
         for (const [name, cfg] of Object.entries(data.mcpServers)) {
           if (cfg && typeof cfg === "object" && cfg.command && Array.isArray(cfg.args)) {
@@ -283,14 +321,23 @@ export class AntigravityCliAgentManager implements AgentManager {
     const serverList = Array.isArray(servers) ? servers : [servers];
     const diffs: DiffEntry[] = [];
     const filePath = this.getConfigFile();
-    const { data, lineEnding } = loadRawJsonConfig(filePath);
+    const { data, lineEnding, hasBom } = loadRawJsonConfig(filePath);
     const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
-    let fileChanged = false;
+    let fileChanged = hasBom;
+
+    if (hasBom) {
+      diffs.push({
+        agent: this.displayName,
+        file: filePath,
+        action: "update",
+        changes: ["Rewrite file without UTF-8 BOM"],
+      });
+    }
 
     for (const server of serverList) {
       const existing = mcpServers[server.name];
       const newConfig = buildServerEntryConfig(server, existing);
-      const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
+      const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig, server);
       diffs.push(diff);
 
       if (diff.action !== "noop") {
@@ -380,7 +427,10 @@ export class AntigravityCliAgentManager implements AgentManager {
       return issues;
     }
 
-    const { data } = loadRawJsonConfig(filePath);
+    const { data, parseError } = loadRawJsonConfig(filePath);
+    if (parseError) {
+      return issues;
+    }
     const cfg = data.mcpServers?.[server.name];
 
     if (!cfg) {
@@ -394,17 +444,32 @@ export class AntigravityCliAgentManager implements AgentManager {
         fix: `Run 'eco_register' to sync Antigravity CLI config`,
       });
     } else {
-      const { matches, differences } = compareServerConfigs(server, cfg);
+      const { matches, differences, extraEnvKeys } = compareServerConfigs(server, cfg);
       if (!matches) {
-        issues.push({
-          severity: "error",
-          category: "drift",
-          agent: this.displayName,
-          server: server.name,
-          file: filePath,
-          message: `Server '${server.name}' in ${filePath} differs from manifest: ${differences.join("; ")}`,
-          fix: `Run 'eco_register' to update agent config from manifest`,
-        });
+        if (differences.length > 0) {
+          issues.push({
+            severity: "error",
+            category: "drift",
+            agent: this.displayName,
+            server: server.name,
+            file: filePath,
+            message: `Server '${server.name}' in ${filePath} differs from manifest: ${differences.join("; ")}`,
+            fix: `Run 'eco_register' to update agent config from manifest`,
+          });
+        }
+        if (extraEnvKeys && extraEnvKeys.length > 0) {
+          for (const key of extraEnvKeys) {
+            issues.push({
+              severity: "error",
+              category: "drift",
+              agent: this.displayName,
+              server: server.name,
+              file: filePath,
+              message: `Server '${server.name}' in ${filePath} has extra env key '${key}' not in manifest`,
+              fix: `add \${secret:${key}} to the server's env in ecosystem.json and the value to ~/.constellation/secrets.json or the process environment`,
+            });
+          }
+        }
       }
     }
 

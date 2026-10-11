@@ -79,8 +79,9 @@ Constellation hợp nhất toàn bộ cấu hình, kiểm tra và bảo trì và
 
 1. **Không bao giờ làm mất cấu hình**: Tạo bản sao lưu xoay vòng (`<file>.bak.constellation`) trước thay đổi đầu tiên của phiên chạy, giúp toàn bộ thao tác có thể khôi phục hoàn toàn. Mỗi tệp cấu hình được ghi tối đa 1 lần mỗi lần chạy. Ghi tệp nguyên tử (atomic write), giữ nguyên định dạng xuống dòng (`CRLF`/`LF`) và thụt lề 2 khoảng trắng.
 2. **Không làm rò rỉ khóa bảo mật**: Các biến môi trường chứa từ khóa `/KEY|TOKEN|SECRET|PASSWORD|AUTH/i` luôn được ẩn thành `"***"` trong mọi đầu ra và bản so sánh diff. Manifest chỉ lưu tham chiếu (`${secret:NAME}`).
-3. **Bất biến và minh bạch (Idempotent)**: Mọi lệnh ghi đều hỗ trợ chế độ chạy thử (`--dry-run`) hiển thị chính xác nội dung thay đổi trước khi áp dụng.
-4. **Kỷ luật Toolchain**: Viết bằng TypeScript, đóng gói thành một tệp duy nhất (`dist/constellation.mjs`) sử dụng toolchain bên ngoài (`CONSTELLATION_TOOLCHAIN`), không tạo thư mục `node_modules` trên ổ đĩa exFAT.
+3. **Chống lỗi UTF-8 BOM & Bảo toàn biến môi trường**: Tự động loại bỏ ký tự BOM (`\uFEFF`) khi đọc cấu hình JSON, cảnh báo trong `doctor`, và ghi lại tệp sạch không BOM khi chạy `register`. Các biến môi trường riêng có sẵn trong agent config mà chưa khai báo trong manifest sẽ được giữ lại (merge) thay vì bị xóa mất, đồng thời hiển thị che mờ (`***`) trong bản so sánh diff.
+4. **Bất biến và minh bạch (Idempotent)**: Mọi lệnh ghi đều hỗ trợ chế độ chạy thử (`--dry-run`) hiển thị chính xác nội dung thay đổi trước khi áp dụng.
+5. **Kỷ luật Toolchain**: Viết bằng TypeScript, đóng gói thành một tệp duy nhất (`dist/constellation.mjs`) sử dụng toolchain bên ngoài (`CONSTELLATION_TOOLCHAIN`), không tạo thư mục `node_modules` trên ổ đĩa exFAT.
 
 ---
 
@@ -182,6 +183,10 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 
 ## Lịch sử phiên bản
 
+- **0.1.5** (2026-10-11):
+  - **Tương thích ký tự UTF-8 BOM**: Tự động loại bỏ ký tự BOM (`\uFEFF`) khi đọc các tệp cấu hình agent và manifest; `doctor` ghi nhận thông báo ("starts with a UTF-8 BOM; some JSON parsers reject it; the next register rewrites it without one"); `register` tự động chuẩn hóa ghi lại tệp sạch không còn BOM.
+  - **Chẩn đoán JSON phân mảnh chính xác**: Tệp cấu hình JSON hỏng chỉ báo duy nhất 1 lỗi tệp kèm thông điệp lỗi cú pháp; loại bỏ hoàn toàn hiện tượng báo thiếu hàng loạt máy chủ giả (false positives).
+  - **Chẩn đoán lệch biến môi trường & Bảo toàn an toàn**: `doctor` phát hiện các biến môi trường riêng chỉ có trong agent config và hiển thị tên biến (giá trị được che mờ) kèm hướng dẫn thêm vào `ecosystem.json`. Lệnh `register` tự động hợp nhất và giữ nguyên các biến môi trường này thay vì xóa mất.
 - **0.1.4** (2026-10-11):
   - **Hồ sơ học tập Polaris (`personal-data`)**: Bổ sung `.polaris/` làm mẫu loại trừ chuẩn thứ 7 vào hợp đồng `personal-data` (`contracts/personal-data/patterns.json`) bảo vệ tệp `<hub>/.polaris/learner.json` (khung giờ học, ngày bận, cam kết tuần, phương pháp học).
   - **Cập nhật Fixtures & Bộ kiểm định**: Cập nhật fixture `.gitignore` hợp lệ bao quát đủ 7/7 mẫu và nâng cấp bộ kiểm tra e2e.

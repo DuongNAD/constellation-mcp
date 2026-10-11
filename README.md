@@ -79,8 +79,9 @@ Constellation unifies all configuration and verification into a single, automate
 
 1. **Never Lose a Config**: Rolling backups (`<file>.bak.constellation`) are created before the run's first change, ensuring a run is fully reversible. Each config file is written at most once per run. Writes are atomic and preserve original line endings (`CRLF`/`LF`) and 2-space indentation. Unmanaged entries are left untouched.
 2. **Never Leak Secrets**: Environment variables matching `/KEY|TOKEN|SECRET|PASSWORD|AUTH/i` are masked as `"***"` across all outputs and diffs. The manifest stores references (`${secret:NAME}`) rather than plaintext secrets.
-3. **Idempotent and Explainable**: Every command supports a dry run that produces exact diffs before touching disk.
-4. **Toolchain Discipline**: Built with TypeScript into a single standalone bundle (`dist/constellation.mjs`) using an external toolchain (`CONSTELLATION_TOOLCHAIN`), keeping exFAT workspaces free of `node_modules`.
+3. **BOM-Tolerant & Credential-Safe**: Strips leading UTF-8 BOM (`\uFEFF`) on reads, warns in `doctor`, and rewrites files cleanly without a BOM on `register`. Server environment variables existing in agent configs but not in the manifest are preserved (merged) rather than silently dropped, and reported in diffs (masked).
+4. **Idempotent and Explainable**: Every command supports a dry run that produces exact diffs before touching disk.
+5. **Toolchain Discipline**: Built with TypeScript into a single standalone bundle (`dist/constellation.mjs`) using an external toolchain (`CONSTELLATION_TOOLCHAIN`), keeping exFAT workspaces free of `node_modules`.
 
 ---
 
@@ -143,7 +144,7 @@ The CLI mirrors all MCP tools:
 ```bash
 # View status
 node dist/constellation.mjs status
-
+ 
 # Import from existing agent configs
 node dist/constellation.mjs import --dry-run
 node dist/constellation.mjs import
@@ -182,6 +183,10 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 
 ## Version History
 
+- **0.1.5** (2026-10-11):
+  - **UTF-8 BOM Tolerance**: Tolerates leading UTF-8 BOM (`\uFEFF`) across all agent configurations and manifest files; `doctor` notices any BOM file ("starts with a UTF-8 BOM; some JSON parsers reject it; the next register rewrites it without one"); `register` rewrites files cleanly without a BOM.
+  - **Resilient Config Diagnostics**: Unparseable JSON configs report a single file-level parse error instead of cascading false "missing server" warnings.
+  - **Env Drift Detection & Safe Retention**: `doctor` flags unmanaged environment variables in agent configs by name only (values masked) with instructions to add them to `ecosystem.json` and secrets storage. `register` merges and retains unmanaged env keys instead of erasing them, displaying them masked in dry-run diffs.
 - **0.1.4** (2026-10-11):
   - **Polaris Learner Profile Contract**: Added `.polaris/` as the 7th canonical ignore pattern to `personal-data` contract (`contracts/personal-data/patterns.json`) covering `<hub>/.polaris/learner.json` (study slots, blackout dates, commitments, study-method preferences).
   - **Updated Test Fixtures & Validator**: Updated valid `.gitignore` fixtures to cover all 7 patterns and adjusted validation expectations to 7/7 patterns.

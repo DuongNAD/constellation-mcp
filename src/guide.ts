@@ -104,12 +104,13 @@ Constellation verifies server availability over stdio:
   doctor: `# Ecosystem Doctor & Drift Diagnostic
 
 The doctor checks:
-1. Config Drift: Discrepancies between manifest and agent configuration files.
-2. Antigravity Copies: Inconsistencies between different Antigravity config copies.
-3. Missing Paths: Checks if repository paths, executables, or script files exist on disk.
-4. Duplicate Names: Flags duplicate server declarations.
-5. Unmanaged Servers: Identifies servers present in agents but absent from the manifest.
-6. Secret Leaks: Detects plaintext API keys in configuration files.
+1. Config Drift: Discrepancies between manifest and agent configuration files, including environment variable drift (extra keys in agent configs reported by name only).
+2. File Integrity & BOM: Flags JSON configs starting with UTF-8 BOM (with notice that the next register rewrites it without BOM) and reports exactly one parse error for malformed files (preventing cascading missing server errors).
+3. Antigravity Copies: Inconsistencies between different Antigravity config copies.
+4. Missing Paths: Checks if repository paths, executables, or script files exist on disk.
+5. Duplicate Names: Flags duplicate server declarations.
+6. Unmanaged Servers: Identifies servers present in agents but absent from the manifest.
+7. Secret Leaks: Detects plaintext API keys in configuration files.
 
 Important Antigravity Note:
 Antigravity binds tools when a conversation starts. Always open a new conversation 1-2 minutes after starting the application.`,
@@ -138,10 +139,11 @@ Use \`eco_contracts\` to view schemas or validate data files (.jsonl events, .gi
   rules: `# Safety & Operating Rules
 
 1. Rolling Backups: Before writing any agent config file, Constellation creates \`<file>.bak.constellation\`.
-2. Atomic Writes: All file writes occur via temporary files and atomic rename.
-3. Masking: Any environment variable with KEY, TOKEN, SECRET, PASSWORD, or AUTH is masked as '***'.
-4. Dry Runs: All mutation operations support \`dry_run\` to preview diffs before applying changes.
-5. No Recursive Scans: Never run recursive scans of D:; access target folders directly.`,
+2. Atomic Writes & BOM Handling: All file writes occur via temporary files and atomic rename. Reads strip leading UTF-8 BOM (\uFEFF); writes always omit BOM while preserving original CRLF/LF line endings and indentation.
+3. Env Key Retention: Registration merges and keeps unmanaged environment variables existing in agent configs to avoid erasing local keys, reporting them masked in diffs.
+4. Masking: Any environment variable with KEY, TOKEN, SECRET, PASSWORD, or AUTH is masked as '***'.
+5. Dry Runs: All mutation operations support \`dry_run\` to preview diffs before applying changes.
+6. No Recursive Scans: Never run recursive scans of D:; access target folders directly.`,
 };
 
 export async function getGuideTopic(topic?: string): Promise<string> {

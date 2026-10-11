@@ -10,6 +10,8 @@ import {
   createRollingBackup,
   detectLineEnding,
   getHomeDir,
+  hasBom,
+  stripBom,
   unescapeTomlString,
 } from "../util.js";
 import {
@@ -227,7 +229,7 @@ export class CodexAgentManager implements AgentManager {
     }
     try {
       const content = readFileSync(filePath, "utf8");
-      return this.parseTomlServers(content);
+      return this.parseTomlServers(stripBom(content));
     } catch {
       return new Map();
     }
@@ -239,15 +241,26 @@ export class CodexAgentManager implements AgentManager {
     const filePath = this.getConfigFile();
     const existingServers = await this.readServers();
 
-    const content = existsSync(filePath) ? readFileSync(filePath, "utf8") : "";
+    const rawContent = existsSync(filePath) ? readFileSync(filePath, "utf8") : "";
+    const fileHasBom = hasBom(rawContent);
+    const content = stripBom(rawContent);
     const lineEnding = detectLineEnding(content);
     let lines = content ? content.split(/\r?\n/) : [];
-    let fileChanged = false;
+    let fileChanged = fileHasBom;
+
+    if (fileHasBom) {
+      diffs.push({
+        agent: this.displayName,
+        file: filePath,
+        action: "update",
+        changes: ["Rewrite file without UTF-8 BOM"],
+      });
+    }
 
     for (const server of serverList) {
       const existing = existingServers.get(server.name);
       const newConfig = buildServerEntryConfig(server, existing);
-      const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
+      const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig, server);
       diffs.push(diff);
 
       if (diff.action !== "noop") {
@@ -382,17 +395,32 @@ export class CodexAgentManager implements AgentManager {
         fix: `Run 'eco_register' to register '${server.name}' in Codex`,
       });
     } else {
-      const { matches, differences } = compareServerConfigs(server, cfg);
+      const { matches, differences, extraEnvKeys } = compareServerConfigs(server, cfg);
       if (!matches) {
-        issues.push({
-          severity: "error",
-          category: "drift",
-          agent: this.displayName,
-          server: server.name,
-          file: filePath,
-          message: `Server '${server.name}' in ~/.codex/config.toml differs from manifest: ${differences.join("; ")}`,
-          fix: `Run 'eco_register' to update Codex configuration`,
-        });
+        if (differences.length > 0) {
+          issues.push({
+            severity: "error",
+            category: "drift",
+            agent: this.displayName,
+            server: server.name,
+            file: filePath,
+            message: `Server '${server.name}' in ~/.codex/config.toml differs from manifest: ${differences.join("; ")}`,
+            fix: `Run 'eco_register' to update Codex configuration`,
+          });
+        }
+        if (extraEnvKeys && extraEnvKeys.length > 0) {
+          for (const key of extraEnvKeys) {
+            issues.push({
+              severity: "error",
+              category: "drift",
+              agent: this.displayName,
+              server: server.name,
+              file: filePath,
+              message: `Server '${server.name}' in ~/.codex/config.toml has extra env key '${key}' not in manifest`,
+              fix: `add \${secret:${key}} to the server's env in ecosystem.json and the value to ~/.constellation/secrets.json or the process environment`,
+            });
+          }
+        }
       }
     }
 

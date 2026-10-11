@@ -258,14 +258,16 @@ export async function registerServers(
     const diffs = await agent.register(serversForAgent, dryRun);
     allDiffs.push(...diffs);
     for (const d of diffs) {
-      if (d.action !== "noop") {
+      if (d.action !== "noop" || d.changes.some((c) => c.toLowerCase().includes("unmanaged"))) {
         lines.push(`[${agent.displayName}] ${d.file}:`);
         d.changes.forEach((c) => lines.push(`  ${c}`));
       }
     }
   }
 
-  const mutatedDiffs = allDiffs.filter((d) => d.action !== "noop");
+  const mutatedDiffs = allDiffs.filter(
+    (d) => d.action !== "noop" || d.changes.some((c) => c.toLowerCase().includes("unmanaged")),
+  );
   if (mutatedDiffs.length === 0) {
     lines.push("All agent configurations are already up to date. No changes required.");
   } else if (!dryRun) {
@@ -530,7 +532,7 @@ export async function startMcp(): Promise<void> {
         if (report.issues.length > 0) {
           lines.push("Issues Detected:");
           for (const iss of report.issues) {
-            if (iss.category === "unmanaged") {
+            if (iss.category === "unmanaged" || (iss.file && iss.message.includes(iss.file))) {
               lines.push(`  [${iss.severity.toUpperCase()}] (${iss.category}) ${iss.message}`);
             } else {
               const loc = iss.file ?? iss.agent ?? iss.server ?? "general";

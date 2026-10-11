@@ -6,9 +6,66 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSy
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-export const VERSION = "0.1.4";
+export const VERSION = "0.1.5";
 
 export const SECRET_KEY_REGEX = /KEY|TOKEN|SECRET|PASSWORD|AUTH/i;
+
+export function stripBom(str: string): string {
+  if (str.charCodeAt(0) === 0xfeff || str.startsWith("\ufeff")) {
+    return str.slice(1);
+  }
+  return str;
+}
+
+export function hasBom(str: string): boolean {
+  return str.charCodeAt(0) === 0xfeff || str.startsWith("\ufeff");
+}
+
+export interface ReadJsonResult<T = any> {
+  data: T | null;
+  raw: string;
+  hasBom: boolean;
+  lineEnding: "\r\n" | "\n";
+  exists: boolean;
+  parseError?: Error;
+}
+
+export function readJsonFile<T = any>(filePath: string): ReadJsonResult<T> {
+  const absPath = resolve(filePath);
+  if (!existsSync(absPath)) {
+    return {
+      data: null,
+      raw: "",
+      hasBom: false,
+      lineEnding: process.platform === "win32" ? "\r\n" : "\n",
+      exists: false,
+    };
+  }
+  try {
+    const raw = readFileSync(absPath, "utf8");
+    const bom = hasBom(raw);
+    const content = bom ? raw.slice(1) : raw;
+    const lineEnding = detectLineEnding(raw);
+    const parsed = JSON.parse(content);
+    return {
+      data: parsed as T,
+      raw,
+      hasBom: bom,
+      lineEnding,
+      exists: true,
+    };
+  } catch (e) {
+    const raw = existsSync(absPath) ? readFileSync(absPath, "utf8") : "";
+    return {
+      data: null,
+      raw,
+      hasBom: hasBom(raw),
+      lineEnding: detectLineEnding(raw),
+      exists: true,
+      parseError: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
 
 export function getHomeDir(): string {
   if (process.env.USERPROFILE) return resolve(process.env.USERPROFILE);

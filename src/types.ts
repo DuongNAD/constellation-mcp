@@ -82,7 +82,9 @@ export type DoctorCategory =
   | "missing_path"
   | "duplicate"
   | "unmanaged"
-  | "secret_leak";
+  | "secret_leak"
+  | "bom"
+  | "parse_error";
 
 export interface DoctorIssue {
   severity: DoctorSeverity;

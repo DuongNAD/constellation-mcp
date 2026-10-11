@@ -2,7 +2,7 @@
  * Cursor IDE agent manager.
  * Manages ~/.cursor/mcp.json.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { AgentServerConfig, DiffEntry, DoctorIssue, ServerEntry } from "../types.js";
 import {
@@ -10,6 +10,7 @@ import {
   createRollingBackup,
   detectLineEnding,
   getHomeDir,
+  readJsonFile,
 } from "../util.js";
 import {
   AgentManager,
@@ -35,29 +36,34 @@ export class CursorAgentManager implements AgentManager {
     data: { mcpServers?: Record<string, AgentServerConfig>; [key: string]: unknown };
     lineEnding: "\r\n" | "\n";
     exists: boolean;
+    hasBom: boolean;
+    parseError?: Error;
   } {
     const filePath = this.getConfigFile();
-    if (!existsSync(filePath)) {
+    const res = readJsonFile<Record<string, unknown>>(filePath);
+    if (!res.exists) {
       return {
         data: { mcpServers: {} },
-        lineEnding: process.platform === "win32" ? "\r\n" : "\n",
+        lineEnding: res.lineEnding,
         exists: false,
+        hasBom: false,
       };
     }
-    try {
-      const content = readFileSync(filePath, "utf8");
-      const lineEnding = detectLineEnding(content);
-      const parsed = JSON.parse(content);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return { data: parsed, lineEnding, exists: true };
-      }
-    } catch {
-      // ignore
+    if (res.parseError) {
+      return {
+        data: { mcpServers: {} },
+        lineEnding: res.lineEnding,
+        exists: true,
+        hasBom: res.hasBom,
+        parseError: res.parseError,
+      };
     }
+    const data = res.data && typeof res.data === "object" && !Array.isArray(res.data) ? res.data : { mcpServers: {} };
     return {
-      data: { mcpServers: {} },
-      lineEnding: process.platform === "win32" ? "\r\n" : "\n",
-      exists: false,
+      data,
+      lineEnding: res.lineEnding,
+      exists: true,
+      hasBom: res.hasBom,
     };
   }
 
@@ -65,7 +71,8 @@ export class CursorAgentManager implements AgentManager {
     const servers = new Map<string, AgentServerConfig>();
     const filePath = this.getConfigFile();
     if (existsSync(filePath)) {
-      const { data } = this.loadRawConfigFile();
+      const { data, parseError } = this.loadRawConfigFile();
+      if (parseError) return servers;
       if (data.mcpServers && typeof data.mcpServers === "object") {
         for (const [name, cfg] of Object.entries(data.mcpServers)) {
           if (cfg && typeof cfg === "object" && cfg.command && Array.isArray(cfg.args)) {
@@ -81,14 +88,23 @@ export class CursorAgentManager implements AgentManager {
     const serverList = Array.isArray(servers) ? servers : [servers];
     const diffs: DiffEntry[] = [];
     const filePath = this.getConfigFile();
-    const { data, lineEnding } = this.loadRawConfigFile();
+    const { data, lineEnding, hasBom } = this.loadRawConfigFile();
     const mcpServers = (data.mcpServers ?? {}) as Record<string, AgentServerConfig>;
-    let fileChanged = false;
+    let fileChanged = hasBom;
+
+    if (hasBom) {
+      diffs.push({
+        agent: this.displayName,
+        file: filePath,
+        action: "update",
+        changes: ["Rewrite file without UTF-8 BOM"],
+      });
+    }
 
     for (const server of serverList) {
       const existing = mcpServers[server.name];
       const newConfig = buildServerEntryConfig(server, existing);
-      const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig);
+      const diff = formatConfigDiff(this.displayName, filePath, server.name, existing, newConfig, server);
       diffs.push(diff);
 
       if (diff.action !== "noop") {
@@ -175,7 +191,10 @@ export class CursorAgentManager implements AgentManager {
       return issues;
     }
 
-    const { data } = this.loadRawConfigFile();
+    const { data, parseError } = this.loadRawConfigFile();
+    if (parseError) {
+      return issues;
+    }
     const cfg = data.mcpServers?.[server.name];
 
     if (!cfg) {
@@ -189,17 +208,32 @@ export class CursorAgentManager implements AgentManager {
         fix: `Run 'eco_register' to register '${server.name}' in Cursor`,
       });
     } else {
-      const { matches, differences } = compareServerConfigs(server, cfg);
+      const { matches, differences, extraEnvKeys } = compareServerConfigs(server, cfg);
       if (!matches) {
-        issues.push({
-          severity: "error",
-          category: "drift",
-          agent: this.displayName,
-          server: server.name,
-          file: filePath,
-          message: `Server '${server.name}' in ~/.cursor/mcp.json differs from manifest: ${differences.join("; ")}`,
-          fix: `Run 'eco_register' to update Cursor MCP configuration`,
-        });
+        if (differences.length > 0) {
+          issues.push({
+            severity: "error",
+            category: "drift",
+            agent: this.displayName,
+            server: server.name,
+            file: filePath,
+            message: `Server '${server.name}' in ~/.cursor/mcp.json differs from manifest: ${differences.join("; ")}`,
+            fix: `Run 'eco_register' to update Cursor MCP configuration`,
+          });
+        }
+        if (extraEnvKeys && extraEnvKeys.length > 0) {
+          for (const key of extraEnvKeys) {
+            issues.push({
+              severity: "error",
+              category: "drift",
+              agent: this.displayName,
+              server: server.name,
+              file: filePath,
+              message: `Server '${server.name}' in ~/.cursor/mcp.json has extra env key '${key}' not in manifest`,
+              fix: `add \${secret:${key}} to the server's env in ecosystem.json and the value to ~/.constellation/secrets.json or the process environment`,
+            });
+          }
+        }
       }
     }
 

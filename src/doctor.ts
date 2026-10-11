@@ -1,11 +1,12 @@
 /**
  * Ecosystem Doctor & Drift Diagnostic Engine.
  */
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { ALL_AGENTS } from "./agents/index.js";
+import { getManifestPath } from "./manifest.js";
 import { DoctorIssue, DoctorReport, Manifest, ServerEntry } from "./types.js";
-import { isSecretKey, isSecretReference } from "./util.js";
+import { hasBom, isSecretKey, isSecretReference, readJsonFile, stripBom } from "./util.js";
 
 export async function runDoctor(manifest: Manifest): Promise<DoctorReport> {
   const issues: DoctorIssue[] = [];
@@ -143,9 +144,72 @@ export async function runDoctor(manifest: Manifest): Promise<DoctorReport> {
     }
   }
 
-  // 4. Check Drift across all agents
+  // Check manifest file for UTF-8 BOM
+  const manifestPath = getManifestPath();
+  if (existsSync(manifestPath)) {
+    try {
+      const manifestRaw = readFileSync(manifestPath, "utf8");
+      if (hasBom(manifestRaw)) {
+        issues.push({
+          severity: "info",
+          category: "bom",
+          file: manifestPath,
+          message: `${manifestPath} starts with a UTF-8 BOM; some JSON parsers reject it; the next register rewrites it without one`,
+          fix: `Run 'eco_register' (or 'constellation register') to rewrite without a BOM`,
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // 4. Check Config Files (BOM & parse errors) & Drift across all agents
   for (const agent of ALL_AGENTS) {
-    agentConfigsChecked += agent.getConfigPaths().filter((p) => existsSync(p)).length;
+    const existingPaths = agent.getConfigPaths().filter((p) => existsSync(p));
+    agentConfigsChecked += existingPaths.length;
+
+    // Check file integrity (BOM notice, single parse error)
+    for (const p of existingPaths) {
+      if (p.endsWith(".json")) {
+        const fileRes = readJsonFile(p);
+        if (fileRes.hasBom) {
+          issues.push({
+            severity: "info",
+            category: "bom",
+            agent: agent.displayName,
+            file: p,
+            message: `${p} starts with a UTF-8 BOM; some JSON parsers reject it; the next register rewrites it without one`,
+            fix: `Run 'eco_register' (or 'constellation register') to rewrite without a BOM`,
+          });
+        }
+        if (fileRes.parseError) {
+          issues.push({
+            severity: "error",
+            category: "parse_error",
+            agent: agent.displayName,
+            file: p,
+            message: `Failed to parse ${p}: ${fileRes.parseError.message}`,
+            fix: `Fix JSON syntax in ${p}`,
+          });
+        }
+      } else if (p.endsWith(".toml")) {
+        try {
+          const raw = readFileSync(p, "utf8");
+          if (hasBom(raw)) {
+            issues.push({
+              severity: "info",
+              category: "bom",
+              agent: agent.displayName,
+              file: p,
+              message: `${p} starts with a UTF-8 BOM; some JSON parsers reject it; the next register rewrites it without one`,
+              fix: `Run 'eco_register' (or 'constellation register') to rewrite without a BOM`,
+            });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
 
     for (const server of manifest.servers) {
       // Check if server is configured for this agent
@@ -205,11 +269,14 @@ export async function runDoctor(manifest: Manifest): Promise<DoctorReport> {
   );
 
   const errorCount = issues.filter((i) => i.severity === "error").length;
+  const noticeCount = issues.length - errorCount;
   const ok = errorCount === 0;
 
   const summary = ok
-    ? `Doctor check passed: ${manifest.servers.length} server(s) healthy across ${agentConfigsChecked} agent config file(s).`
-    : `Doctor found ${errorCount} error(s) and ${issues.length - errorCount} notice(s) across ${manifest.servers.length} server(s).`;
+    ? noticeCount > 0
+      ? `Doctor check passed with ${noticeCount} notice(s): ${manifest.servers.length} server(s) healthy across ${agentConfigsChecked} agent config file(s).`
+      : `Doctor check passed: ${manifest.servers.length} server(s) healthy across ${agentConfigsChecked} agent config file(s).`
+    : `Doctor found ${errorCount} error(s) and ${noticeCount} notice(s) across ${manifest.servers.length} server(s).`;
 
   return {
     ok,

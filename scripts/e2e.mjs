@@ -237,7 +237,7 @@ try {
   // Test server identification and instructions
   const info = client.getServerVersion();
   ok("server identifies itself as constellation", info?.name === "constellation", `${info?.name} ${info?.version}`);
-  ok("server version is 0.1.4", info?.version === "0.1.4", info?.version);
+  ok("server version is 0.1.5", info?.version === "0.1.5", info?.version);
   const instructions = client.getInstructions() ?? "";
   ok("server sends instructions with workflow and rules", instructions.includes("Workflow:") && instructions.includes("Rules:"));
 
@@ -435,6 +435,75 @@ try {
   r = await call("eco_doctor");
   ok("eco_doctor reports clean after eco_register reconcile", !r.isError && textOf(r).includes("Doctor check passed"));
 
+  // 7b. Constellation 0.1.5: UTF-8 BOM tolerance, single parse error reporting, env drift & register merge
+  // Test A: A BOM config is parsed & the doctor notice appears
+  const ag2Content = readFileSync(ag2Path, "utf8");
+  const ag2WithBom = "\uFEFF" + (ag2Content.startsWith("\uFEFF") ? ag2Content.slice(1) : ag2Content);
+  writeFileSync(ag2Path, ag2WithBom, "utf8");
+  ok("ag2 file written with UTF-8 BOM", readFileSync(ag2Path, "utf8").charCodeAt(0) === 0xfeff);
+
+  r = await call("eco_doctor");
+  const bomDoctorText = textOf(r);
+  ok(
+    "the doctor notice appears for BOM config",
+    bomDoctorText.includes("starts with a UTF-8 BOM; some JSON parsers reject it; the next register rewrites it without one"),
+  );
+  ok("a BOM config is parsed without missing server errors", !bomDoctorText.includes("missing in"));
+
+  // Test B: A broken JSON config gives exactly one error, never server missing for every server
+  const savedCursorContent = readFileSync(cursorFile, "utf8");
+  writeFileSync(cursorFile, "{ broken json content: invalid syntax", "utf8");
+  r = await call("eco_doctor");
+  const brokenDoctorText = textOf(r);
+  ok("doctor detects broken JSON as error", r.isError && brokenDoctorText.includes("Failed to parse"));
+  const parseErrorsForCursor = brokenDoctorText.split("\n").filter((l) => l.includes("Failed to parse") && l.includes("mcp.json"));
+  const missingErrorsForCursor = brokenDoctorText.split("\n").filter((l) => l.includes("missing in") && l.includes("mcp.json"));
+  ok("a broken JSON config gives exactly one error", parseErrorsForCursor.length === 1);
+  ok("broken JSON never reports server missing for every server", missingErrorsForCursor.length === 0);
+  // Restore cursor file
+  writeFileSync(cursorFile, savedCursorContent, "utf8");
+
+  // Test C: Env drift: doctor reports env keys in agent but not in manifest (masked), with fix
+  const ag1Data = JSON.parse(readFileSync(ag1Path, "utf8").replace(/^\uFEFF/, ""));
+  const FAKE_EXTRA_SECRET = "secret_custom_token_val_4321";
+  ag1Data.mcpServers["fake-test-server"].env = {
+    ...(ag1Data.mcpServers["fake-test-server"].env || {}),
+    CUSTOM_EXTRA_SECRET_KEY: FAKE_EXTRA_SECRET,
+  };
+  writeFileSync(ag1Path, JSON.stringify(ag1Data, null, 2).replace(/\n/g, "\r\n") + "\r\n", "utf8");
+
+  r = await call("eco_doctor");
+  const envDriftText = textOf(r);
+  ok("drift is reported by key name", envDriftText.includes("CUSTOM_EXTRA_SECRET_KEY"));
+  ok("drift never prints secret value in doctor output", !envDriftText.includes(FAKE_EXTRA_SECRET));
+  ok(
+    "doctor provides fix instruction with secret placeholder",
+    envDriftText.includes("add ${secret:CUSTOM_EXTRA_SECRET_KEY} to the server's env in ecosystem.json and the value to ~/.constellation/secrets.json or the process environment"),
+  );
+
+  // Test D: Dry-run register reports kept unmanaged env key masked
+  r = await call("eco_register", { dry_run: true });
+  const dryRunText = textOf(r);
+  ok(
+    "drift is reported with the value masked in dry-run",
+    dryRunText.includes("CUSTOM_EXTRA_SECRET_KEY") && dryRunText.includes("***") && !dryRunText.includes(FAKE_EXTRA_SECRET),
+  );
+
+  // Test E: Register keeps unknown env key and writes the file without a BOM
+  r = await call("eco_register");
+  const ag1AfterMerge = JSON.parse(readFileSync(ag1Path, "utf8").replace(/^\uFEFF/, ""));
+  ok(
+    "register keeps an unknown env key",
+    ag1AfterMerge.mcpServers["fake-test-server"]?.env?.CUSTOM_EXTRA_SECRET_KEY === FAKE_EXTRA_SECRET,
+  );
+  const ag2AfterRaw = readFileSync(ag2Path, "utf8");
+  ok("register writes the file without a BOM", ag2AfterRaw.charCodeAt(0) !== 0xfeff);
+
+  // Clean up extra env key for subsequent tests so eco_health and following checks have clean state
+  delete ag1Data.mcpServers["fake-test-server"].env.CUSTOM_EXTRA_SECRET_KEY;
+  writeFileSync(ag1Path, JSON.stringify(ag1Data, null, 2).replace(/\n/g, "\r\n") + "\r\n", "utf8");
+  await call("eco_register");
+
   // 8. eco_health checks
   r = await call("eco_health");
   const healthText = textOf(r);
@@ -574,7 +643,7 @@ try {
 
   // Version command
   const verOut = execFileSync(process.execPath, [cliBin, "version"], { env: testEnv, encoding: "utf8" }).trim();
-  ok("CLI version prints 0.1.4", verOut === "0.1.4");
+  ok("CLI version prints 0.1.5", verOut === "0.1.5");
 
   // Status command
   const statusOut = execFileSync(process.execPath, [cliBin, "status"], { env: testEnv, encoding: "utf8" });
