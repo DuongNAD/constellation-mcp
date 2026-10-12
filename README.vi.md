@@ -11,51 +11,51 @@ Trung tâm điều khiển hệ sinh thái MCP cho người học: một tệp c
 ```mermaid
 flowchart TD
   subgraph Ecosystem["Hệ sinh thái của DuongNAD"]
-    Polaris["Polaris MCP\n(Thiết kế khóa học & Ôn tập)"]
-    Aurora["Aurora Slides MCP\n(Slide bài giảng & Thực hành)"]
-    SmartDrive["SmartDrive-OS\n(Quản trị SSD & Tìm kiếm)"]
-    McpAgy["mcp-agy\n(Ủy quyền Antigravity)"]
-    Vega["Vega MCP\n(Bộ nhớ FSRS Spaced Repetition)"]
-    Orion["Orion MCP\n(Bài thực hành & Thang gợi ý)"]
-    Sirius["Sirius MCP\n(Vòng lặp thực thi & Hạn chót)"]
-    Mira["Mira MCP\n(Phòng dò code)"]
+    Polaris["Polaris MCP<br>(Thiết kế khóa học & Ôn tập)"]
+    Aurora["Aurora Slides MCP<br>(Slide bài giảng & Thực hành)"]
+    SmartDrive["SmartDrive-OS<br>(Quản trị SSD & Tìm kiếm)"]
+    McpAgy["mcp-agy<br>(Ủy quyền Antigravity)"]
+    Vega["Vega MCP<br>(Bộ nhớ FSRS Spaced Repetition)"]
+    Orion["Orion MCP<br>(Bài thực hành & Thang gợi ý)"]
+    Sirius["Sirius MCP<br>(Vòng lặp thực thi & Hạn chót)"]
+    Mira["Mira MCP<br>(Phòng dò code)"]
   end
 
   subgraph ControlPlane["Trung tâm điều khiển"]
-    Constellation["Constellation MCP\n(~/.constellation/ecosystem.json)"]
+    Constellation["Constellation MCP<br>(~/.constellation/ecosystem.json)"]
   end
 
   subgraph Agents["Coding Agents"]
-    Claude["Claude Code\n(~/.claude.json)"]
-    Antigravity["Google Antigravity IDE\n(~/.gemini/*/mcp_config.json)"]
-    AntigravityCli["Antigravity CLI\n(~/.gemini/antigravity-cli/mcp_config.json)"]
-    Cursor["Cursor IDE\n(~/.cursor/mcp.json)"]
-    Codex["OpenAI Codex\n(~/.codex/config.toml)"]
+    Claude["Claude Code<br>(~/.claude.json)"]
+    Antigravity["Google Antigravity IDE<br>(~/.gemini/*/mcp_config.json)"]
+    AntigravityCli["Antigravity CLI<br>(~/.gemini/antigravity-cli/mcp_config.json)"]
+    Cursor["Cursor IDE<br>(~/.cursor/mcp.json)"]
+    Codex["OpenAI Codex<br>(~/.codex/config.toml)"]
   end
 
-  Constellation -->|Đăng ký & Đồng bộ| Claude
-  Constellation -->|Đăng ký & Đồng bộ CRLF| Antigravity
-  Constellation -->|Đăng ký & Đồng bộ CLI| AntigravityCli
-  Constellation -->|Đăng ký & Đồng bộ| Cursor
-  Constellation -->|Đăng ký & Đồng bộ TOML| Codex
+  Constellation -->|"Đăng ký & Đồng bộ"| Claude
+  Constellation -->|"Đăng ký & Đồng bộ CRLF"| Antigravity
+  Constellation -->|"Đăng ký & Đồng bộ CLI"| AntigravityCli
+  Constellation -->|"Đăng ký & Đồng bộ"| Cursor
+  Constellation -->|"Đăng ký & Đồng bộ TOML"| Codex
 
-  Constellation -->|Kiểm tra sức khỏe & Cập nhật| Polaris
-  Constellation -->|Kiểm tra sức khỏe & Cập nhật| Aurora
-  Constellation -->|Kiểm tra sức khỏe & Cập nhật| SmartDrive
-  Constellation -->|Kiểm tra sức khỏe & Cập nhật| McpAgy
-  Constellation -->|Kiểm tra sức khỏe & Cập nhật| Vega
-  Constellation -->|Kiểm tra sức khỏe & Cập nhật| Orion
-  Constellation -->|Kiểm tra sức khỏe & Cập nhật| Sirius
-  Constellation -->|Kiểm tra sức khỏe & Cập nhật| Mira
+  Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| Polaris
+  Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| Aurora
+  Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| SmartDrive
+  Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| McpAgy
+  Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| Vega
+  Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| Orion
+  Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| Sirius
+  Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| Mira
 
-  Aurora -.->|aurora-progress-event.v1| Polaris
-  Aurora -.->|aurora-progress-event.v1 (card)| Vega
-  Polaris -.->|vega-card-inbox.v1| Vega
-  Orion -.->|vega-card-inbox.v1| Vega
-  Mira -.->|vega-card-inbox.v1| Vega
-  Mira -.->|mira-embed.v1| Aurora
-  Polaris -.->|post-write-hook| SmartDrive
-  Aurora -.->|post-write-hook| SmartDrive
+  Aurora -.->|"aurora-progress-event.v1"| Polaris
+  Aurora -.->|"aurora-progress-event.v1 (card)"| Vega
+  Polaris -.->|"vega-card-inbox.v1"| Vega
+  Orion -.->|"vega-card-inbox.v1"| Vega
+  Mira -.->|"vega-card-inbox.v1"| Vega
+  Mira -.->|"mira-embed.v1"| Aurora
+  Polaris -.->|"post-write-hook"| SmartDrive
+  Aurora -.->|"post-write-hook"| SmartDrive
 ```
 
 ---

@@ -11,51 +11,51 @@ Control plane of the learner's MCP ecosystem: one manifest of servers, one comma
 ```mermaid
 flowchart TD
   subgraph Ecosystem["Ecosystem by DuongNAD"]
-    Polaris["Polaris MCP\n(Course Architect & Retention)"]
-    Aurora["Aurora Slides MCP\n(Keynote Decks & Practice)"]
-    SmartDrive["SmartDrive-OS\n(SSD Governance & Index)"]
-    McpAgy["mcp-agy\n(Antigravity Delegation)"]
-    Vega["Vega MCP\n(FSRS Memory Engine)"]
-    Orion["Orion MCP\n(Practice Labs & Tutoring Ladder)"]
-    Sirius["Sirius MCP\n(Execution Loop & Deadlines)"]
-    Mira["Mira MCP\n(Code Tracing Lab)"]
+    Polaris["Polaris MCP<br>(Course Architect & Retention)"]
+    Aurora["Aurora Slides MCP<br>(Keynote Decks & Practice)"]
+    SmartDrive["SmartDrive-OS<br>(SSD Governance & Index)"]
+    McpAgy["mcp-agy<br>(Antigravity Delegation)"]
+    Vega["Vega MCP<br>(FSRS Memory Engine)"]
+    Orion["Orion MCP<br>(Practice Labs & Tutoring Ladder)"]
+    Sirius["Sirius MCP<br>(Execution Loop & Deadlines)"]
+    Mira["Mira MCP<br>(Code Tracing Lab)"]
   end
 
   subgraph ControlPlane["Control Plane"]
-    Constellation["Constellation MCP\n(~/.constellation/ecosystem.json)"]
+    Constellation["Constellation MCP<br>(~/.constellation/ecosystem.json)"]
   end
 
   subgraph Agents["Coding Agents"]
-    Claude["Claude Code\n(~/.claude.json)"]
-    Antigravity["Google Antigravity IDE\n(~/.gemini/*/mcp_config.json)"]
-    AntigravityCli["Antigravity CLI\n(~/.gemini/antigravity-cli/mcp_config.json)"]
-    Cursor["Cursor IDE\n(~/.cursor/mcp.json)"]
-    Codex["OpenAI Codex\n(~/.codex/config.toml)"]
+    Claude["Claude Code<br>(~/.claude.json)"]
+    Antigravity["Google Antigravity IDE<br>(~/.gemini/*/mcp_config.json)"]
+    AntigravityCli["Antigravity CLI<br>(~/.gemini/antigravity-cli/mcp_config.json)"]
+    Cursor["Cursor IDE<br>(~/.cursor/mcp.json)"]
+    Codex["OpenAI Codex<br>(~/.codex/config.toml)"]
   end
 
-  Constellation -->|Registers & Syncs| Claude
-  Constellation -->|Registers & Syncs CRLF| Antigravity
-  Constellation -->|Registers & Syncs CLI| AntigravityCli
-  Constellation -->|Registers & Syncs| Cursor
-  Constellation -->|Registers & Syncs TOML| Codex
+  Constellation -->|"Registers & Syncs"| Claude
+  Constellation -->|"Registers & Syncs CRLF"| Antigravity
+  Constellation -->|"Registers & Syncs CLI"| AntigravityCli
+  Constellation -->|"Registers & Syncs"| Cursor
+  Constellation -->|"Registers & Syncs TOML"| Codex
 
-  Constellation -->|Health & Updates| Polaris
-  Constellation -->|Health & Updates| Aurora
-  Constellation -->|Health & Updates| SmartDrive
-  Constellation -->|Health & Updates| McpAgy
-  Constellation -->|Health & Updates| Vega
-  Constellation -->|Health & Updates| Orion
-  Constellation -->|Health & Updates| Sirius
-  Constellation -->|Health & Updates| Mira
+  Constellation -->|"Health & Updates"| Polaris
+  Constellation -->|"Health & Updates"| Aurora
+  Constellation -->|"Health & Updates"| SmartDrive
+  Constellation -->|"Health & Updates"| McpAgy
+  Constellation -->|"Health & Updates"| Vega
+  Constellation -->|"Health & Updates"| Orion
+  Constellation -->|"Health & Updates"| Sirius
+  Constellation -->|"Health & Updates"| Mira
 
-  Aurora -.->|aurora-progress-event.v1| Polaris
-  Aurora -.->|aurora-progress-event.v1 (card)| Vega
-  Polaris -.->|vega-card-inbox.v1| Vega
-  Orion -.->|vega-card-inbox.v1| Vega
-  Mira -.->|vega-card-inbox.v1| Vega
-  Mira -.->|mira-embed.v1| Aurora
-  Polaris -.->|post-write-hook| SmartDrive
-  Aurora -.->|post-write-hook| SmartDrive
+  Aurora -.->|"aurora-progress-event.v1"| Polaris
+  Aurora -.->|"aurora-progress-event.v1 (card)"| Vega
+  Polaris -.->|"vega-card-inbox.v1"| Vega
+  Orion -.->|"vega-card-inbox.v1"| Vega
+  Mira -.->|"vega-card-inbox.v1"| Vega
+  Mira -.->|"mira-embed.v1"| Aurora
+  Polaris -.->|"post-write-hook"| SmartDrive
+  Aurora -.->|"post-write-hook"| SmartDrive
 ```
 
 ---
