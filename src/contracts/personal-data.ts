@@ -70,6 +70,15 @@ export const PERSONAL_DATA_PATTERNS: PersonalDataPattern[] = [
     description: "Learner profile with study time slots, blackout dates, commitments and study-method preferences.",
     remediation: "Untrack with 'git rm -r --cached .polaris/' then commit; check history if published.",
   },
+  {
+    pattern: ".sirius/",
+    category: "personal",
+    owner: "sirius",
+    ownerProject: "Sirius (sirius-mcp)",
+    description:
+      "Sirius execution journal: study sessions with minutes and outcomes, implementation intentions, task-triage decisions, and the derived triage.json read by pick_today.py.",
+    remediation: "Untrack with 'git rm -r --cached .sirius/' then commit; check history if published.",
+  },
 ];
 
 function globMatches(glob: string, text: string): boolean {
@@ -115,6 +124,10 @@ export function isPatternCoveredByRule(targetPattern: string, rule: string): boo
 
     case ".polaris/":
       if (cleanRule === ".polaris") return true;
+      break;
+
+    case ".sirius/":
+      if (cleanRule === ".sirius") return true;
       break;
 
     case "**/progress.jsonl":

@@ -16,6 +16,9 @@ flowchart TD
     SmartDrive["SmartDrive-OS\n(SSD Governance & Index)"]
     McpAgy["mcp-agy\n(Antigravity Delegation)"]
     Vega["Vega MCP\n(FSRS Memory Engine)"]
+    Orion["Orion MCP\n(Practice Labs & Tutoring Ladder)"]
+    Sirius["Sirius MCP\n(Execution Loop & Deadlines)"]
+    Mira["Mira MCP\n(Code Tracing Lab)"]
   end
 
   subgraph ControlPlane["Control Plane"]
@@ -40,9 +43,17 @@ flowchart TD
   Constellation -->|Health & Updates| Aurora
   Constellation -->|Health & Updates| SmartDrive
   Constellation -->|Health & Updates| McpAgy
+  Constellation -->|Health & Updates| Vega
+  Constellation -->|Health & Updates| Orion
+  Constellation -->|Health & Updates| Sirius
+  Constellation -->|Health & Updates| Mira
 
   Aurora -.->|aurora-progress-event.v1| Polaris
   Aurora -.->|aurora-progress-event.v1 (card)| Vega
+  Polaris -.->|vega-card-inbox.v1| Vega
+  Orion -.->|vega-card-inbox.v1| Vega
+  Mira -.->|vega-card-inbox.v1| Vega
+  Mira -.->|mira-embed.v1| Aurora
   Polaris -.->|post-write-hook| SmartDrive
   Aurora -.->|post-write-hook| SmartDrive
 ```
@@ -53,11 +64,13 @@ flowchart TD
 
 | Server / Tool | Repository | Purpose | Shared Contracts |
 |---|---|---|---|
-| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Course architect, evidence research, spaced reviews | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data` |
-| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Keynote-style decks, interactive recall, SRS slides | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data` |
-| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | FSRS spaced repetition memory engine (`vega_sync`) | `aurora-progress-event.v1` (`card` event), `personal-data` |
+| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Course architect, evidence research, spaced reviews | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `vega-card-inbox.v1` |
+| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Keynote-style decks, interactive recall, SRS slides, Mira `trace` slides | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `mira-embed.v1` |
+| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | FSRS spaced repetition memory engine (`vega_sync`, card inbox) | `aurora-progress-event.v1` (`card` event), `vega-card-inbox.v1`, `personal-data` |
 | **SmartDrive-OS** | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) | SSD workspace governance, BM25/vector search | `learning-units`, `post-write-hook`, `personal-data` |
-| **Orion** | [orion-mcp](https://github.com/DuongNAD/orion-mcp) | Interactive hypothesis & lab verification | `personal-data` |
+| **Orion** | [orion-mcp](https://github.com/DuongNAD/orion-mcp) | Practice labs with real tests and tutoring-ladder hints | `personal-data`, `vega-card-inbox.v1` |
+| **Sirius** | [sirius-mcp](https://github.com/DuongNAD/sirius-mcp) | Execution loop: deadline sentinel, task triage, today router, session timer, weekly plan-vs-actual review | `personal-data` |
+| **Mira** | [mira-mcp](https://github.com/DuongNAD/mira-mcp) | Code-tracing lab: real Python traces, line-by-line players with prediction gates, embeddable in Aurora `trace` slides | `mira-embed.v1`, `aurora-progress-event.v1` (`predict`, `complete` events), `vega-card-inbox.v1`, `personal-data` |
 | **mcp-agy** | [mcp-agy](https://github.com/DuongNAD/mcp-agy) | Google Antigravity delegation gateway | — |
 
 ---
@@ -69,7 +82,7 @@ When orchestrating multiple MCP servers across different coding assistants, seve
 2. Different IDE agents overwrite or desynchronize config files.
 3. Starting conversations before a server finishes initialization leads to missing tool binding.
 4. Headless subagents (like `mcp-agy`) need lightweight configurations without every heavy GUI tool loaded.
-5. Shared contracts between tools (e.g. progress event v1, learning-unit markers, post-write hooks, source labels, and personal-data ignore patterns) drift if not anchored in a single source of truth.
+5. Shared contracts between tools (e.g. progress event v1, the Vega card inbox, the Mira embed protocol, learning-unit markers, post-write hooks, source labels, and personal-data ignore patterns) drift if not anchored in a single source of truth.
 
 Constellation unifies all configuration and verification into a single, automated control plane.
 
@@ -133,7 +146,7 @@ Add Constellation to your agent configuration:
 | `eco_health` | Starts child servers over stdio, performs client handshakes, lists tools, and records latencies. |
 | `eco_doctor` | Detects config drift, missing file paths, Antigravity copy mismatches, and groups unmanaged servers. |
 | `eco_update` | Pulls (`git pull --ff-only` on clean trees) and runs configured `build` and `test` scripts. |
-| `eco_contracts` | Lists shared contracts, displays specifications, and validates JSON/JSONL progress event files. |
+| `eco_contracts` | Lists shared contracts, displays specifications, and validates JSONL files (progress events, Vega card inbox lines, Mira embed messages) and `.gitignore` coverage. |
 
 ---
 
@@ -165,6 +178,12 @@ node dist/constellation.mjs doctor
 # Validate contract fixtures
 node dist/constellation.mjs contracts validate aurora-progress-event.v1 contracts/fixtures/valid-progress.jsonl
 
+# Validate Vega card inbox lines (per-line errors, OK summary)
+node dist/constellation.mjs contracts validate vega-card-inbox.v1 contracts/vega-card-inbox.v1/fixtures/valid.jsonl
+
+# Validate Mira embed messages (player <-> Aurora deck)
+node dist/constellation.mjs contracts validate mira-embed.v1 contracts/mira-embed.v1/fixtures/valid.jsonl
+
 # Validate .gitignore against personal data contract
 node dist/constellation.mjs contracts validate personal-data .gitignore
 ```
@@ -177,12 +196,19 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 2. [`learning-units`](contracts/learning-units/README.md): Protected folder markers (`course.json`, `deck.json`, `polaris/brief.json`) and SmartDrive SSD rules.
 3. [`post-write-hook`](contracts/post-write-hook/README.md): Debounced `smart-drive update <dir> --quiet` notification standard.
 4. [`source-labels`](contracts/source-labels/README.md): "Khóa học" / "Mở rộng" / "chưa xác minh" label mappings.
-5. [`personal-data`](contracts/personal-data/README.md): Canonical ignore patterns for sensitive personal learning data (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`, `.polaris/`) and third-party/regenerable files (`**/polaris/captures/`, `**/polaris/.cache/`). Includes automated `.gitignore` validator.
+5. [`personal-data`](contracts/personal-data/README.md): Canonical ignore patterns for sensitive personal learning data (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`, `.polaris/`, `.sirius/`) and third-party/regenerable files (`**/polaris/captures/`, `**/polaris/.cache/`). Includes automated `.gitignore` validator.
+6. [`vega-card-inbox.v1`](contracts/vega-card-inbox.v1/README.md): One adaptive review queue. Polaris, Orion and Mira (and Aurora, Sirius, manual) drop card candidates as JSON Lines files in `<hub>/.vega/inbox/`; Vega alone validates, deduplicates by key and schedules them with FSRS. Includes JSON Schema, fixtures and a line validator.
+7. [`mira-embed.v1`](contracts/mira-embed.v1/README.md): `postMessage` protocol between a Mira player (iframe) and the Aurora deck that embeds it in a `trace` slide: `ready`, `event` and `blur` from the player, `hello` from the deck. Includes JSON Schema, fixtures and a message validator.
 
 ---
 
 ## Version History
 
+- **0.1.7** (2026-10-12):
+  - **Vega card inbox contract (`vega-card-inbox.v1`)**: one adaptive review queue. Polaris, Orion and Mira drop card candidates as JSON Lines files in `<hub>/.vega/inbox/` and Vega alone validates, deduplicates by key and schedules them with FSRS. Includes README, JSON Schema, fixtures and a validator (`constellation contracts validate vega-card-inbox.v1 <file>`) with per-line errors.
+  - **Mira embed contract (`mira-embed.v1`)**: the `postMessage` protocol between Mira players and Aurora `trace` slides (`ready`, `event`, `blur` from the player, `hello` from the deck), with field rules, relayed events, security notes, JSON Schema, fixtures and a message validator.
+  - **`personal-data` now has 8 canonical patterns**: `.sirius/` protects the Sirius execution journal (sessions, implementation intentions, triage decisions, derived `triage.json`). Valid `.gitignore` fixtures cover 8/8 patterns; a `.gitignore` written for 0.1.6 now reports `.sirius/` as missing.
+  - **Ecosystem lists**: Orion, Sirius and Mira added to the guide overview, the server instructions and the README tables and diagram; `contracts list`/`show`/`validate` know the two new contracts and accept the short names `vega-card-inbox`, `card-inbox` and `mira-embed`.
 - **0.1.6** (2026-10-11):
   - Register resolves `${secret:NAME}` from the process environment or `~/.constellation/secrets.json` and writes the real value; an agent that already has the server keeps its value only when the store has none; a secret that cannot be resolved is refused (the placeholder is never written).
   - Register compares real values (shown masked), so a rotated key or a leftover placeholder is updated ("updated secret value ... (values hidden)").

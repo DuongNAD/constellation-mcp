@@ -1,7 +1,7 @@
 # Contract: `personal-data`
 
 ## Purpose
-The `personal-data` contract establishes the canonical ignore patterns and confidentiality boundary for the learner's MCP ecosystem (**Polaris**, **Aurora Slides**, **Vega**, **Orion**, and **SmartDrive-OS**).
+The `personal-data` contract establishes the canonical ignore patterns and confidentiality boundary for the learner's MCP ecosystem (**Polaris**, **Aurora Slides**, **Vega**, **Orion**, **Sirius**, and **SmartDrive-OS**).
 
 When developing, taking courses, or collaborating in public or shared repositories, **personal learning metrics**, **attempt journals**, **spaced-repetition memory intervals**, and **copyrighted third-party research copies** must never be committed to source control.
 
@@ -18,6 +18,7 @@ When developing, taking courses, or collaborating in public or shared repositori
 | `**/polaris/captures/` | Third-party / copyright | Polaris (`polaris-mcp`) | Full-text captured articles, downloaded PDFs, video transcripts, proprietary lecture notes used as research evidence. | `git rm -r --cached **/polaris/captures/` (commit removal; rewrite git history to avoid copyright infringement) |
 | `**/polaris/.cache/` | Regenerable cache | Polaris (`polaris-mcp`) | Raw query responses and HTTP payload caches from external APIs (OpenAlex, arXiv, CrossRef). Regenerable on demand. | `git rm -r --cached **/polaris/.cache/` (commit removal) |
 | `.polaris/` | Personal learning data | Polaris (`polaris-mcp`) | Learner profile with study time slots, blackout dates, commitments and study-method preferences (`learner.json`). | `git rm -r --cached .polaris/` (commit removal; check history if published) |
+| `.sirius/` | Personal learning data | Sirius (`sirius-mcp`) | Sirius execution journal: study sessions with minutes and outcomes, implementation intentions, task-triage decisions, and the derived `triage.json` read by `pick_today.py`. | `git rm -r --cached .sirius/` (commit removal; check history if published) |
 
 ---
 
@@ -42,6 +43,7 @@ When developing, taking courses, or collaborating in public or shared repositori
 - **Owner**: [Aurora Slides MCP](https://github.com/DuongNAD/aurora-slides-mcp), consumed by Polaris and Vega.
 - **Path layout**: `<lesson_dir>/progress.jsonl` or `<deck_dir>/progress.jsonl`
 - **Why sensitive**: Records real-time student interactions conforming to `aurora-progress-event.v1`. Every submitted quiz choice, prediction text, and recall checkpoint is logged with timestamps.
+- **Also written by**: Mira players save the same events (`predict` and `complete`) to `<served_dir>/progress.jsonl` when served by `mira_preview`, and export `aurora-progress-mira-<slug>.jsonl`; both names are covered by the patterns of sections 2 and 3.
 - **Gitignore pattern**: `**/progress.jsonl`
 - **Remediation**:
   ```bash
@@ -105,6 +107,18 @@ When developing, taking courses, or collaborating in public or shared repositori
   ```
   If published to a public repository, check commit history.
 
+### 8. Sirius Execution Journal (`.sirius/`)
+- **Owner**: [Sirius MCP](https://github.com/DuongNAD/sirius-mcp)
+- **Path layout**: `<workspace>/.sirius/journal.jsonl` (append-only journal), `<workspace>/.sirius/active.json` (the running session timer), `<workspace>/.sirius/triage.json` (derived file read by the hub's `pick_today.py`), and an optional `<workspace>/.sirius/aliases.json`.
+- **Why sensitive**: Records how the learner actually spends time: study sessions with minutes and outcomes, implementation intentions (if-then commitments), task-triage decisions (which overdue tasks were judged superseded, parked or snoozed), and the `triage.json` derived from those decisions.
+- **Gitignore pattern**: `.sirius/`
+- **Remediation**:
+  ```bash
+  git rm -r --cached .sirius/
+  git commit -m "chore: untrack sirius execution journal"
+  ```
+  If published to a public repository, check commit history.
+
 ---
 
 ## Tooling Integration
@@ -121,6 +135,7 @@ orion-attempts.jsonl
 **/polaris/captures/
 **/polaris/.cache/
 .polaris/
+.sirius/
 # <<< smart-drive managed <<<
 ```
 
@@ -136,11 +151,14 @@ captures/
 
 This acts as a second line of defense even if the workspace root `.gitignore` is missing or misconfigured.
 
+### Sirius Automatic `.sirius/.gitignore`
+Before every write into `<workspace>/.sirius/`, Sirius makes sure `.sirius/.gitignore` exists (content `*`; created when missing, never overwritten). The same second line of defense: the journal stays out of git even when the workspace root `.gitignore` lacks `.sirius/`.
+
 ---
 
 ## Validation Algorithm & Matching Rules
 
-The Constellation contract validator checks whether a given `.gitignore` covers all 7 canonical patterns:
+The Constellation contract validator checks whether a given `.gitignore` covers all 8 canonical patterns:
 
 ```bash
 constellation contracts validate personal-data <path-to-.gitignore>
@@ -149,7 +167,7 @@ constellation contracts validate personal-data <path-to-.gitignore>
 ### Coverage Rules:
 1. **Direct Match**:
    - Exact line match or normalized match ignoring leading `/`, leading `**/`, or trailing `/`.
-   - E.g., `.vega` matches `.vega/`, `progress.jsonl` matches `**/progress.jsonl`, `polaris/captures/` matches `**/polaris/captures/`.
+   - E.g., `.vega` matches `.vega/`, `.sirius` matches `.sirius/`, `progress.jsonl` matches `**/progress.jsonl`, `polaris/captures/` matches `**/polaris/captures/`.
 2. **Broader Parent Directory**:
    - If a directory rule ignores a parent directory, all sub-paths are considered covered.
    - E.g., `polaris/` or `polaris` or `**/polaris/` covers both `**/polaris/captures/` and `**/polaris/.cache/`.

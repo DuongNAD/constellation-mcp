@@ -90,7 +90,7 @@ Located at `~/.constellation/ecosystem.json` (or `$CONSTELLATION_HOME/ecosystem.
 - `eco_health {servers?, timeout_ms?}`: Executes stdio client handshakes and tool discovery.
 - `eco_doctor`: Detects configuration drift, missing file paths, duplicate servers, and Antigravity copy mismatches.
 - `eco_update {servers?, pull?, build?, test?}`: Performs safe `git pull --ff-only` on clean trees, then runs builds and tests.
-- `eco_contracts {action, name?, file?}`: Lists shared contracts, displays specs, or validates event lines.
+- `eco_contracts {action, name?, file?}`: Lists shared contracts, displays specs, or validates data files (`aurora-progress-event.v1` events, `vega-card-inbox.v1` card lines, `mira-embed.v1` messages, `personal-data` .gitignore coverage).
 
 ---
 

@@ -8,6 +8,11 @@ Ecosystem (all by DuongNAD):
 - Polaris (https://github.com/DuongNAD/polaris-mcp): course architect (profile, research, roadmap, schedule).
 - Aurora Slides (https://github.com/DuongNAD/aurora-slides-mcp): lessons, practice and progress events.
 - Vega (https://github.com/DuongNAD/vega-mcp): FSRS spaced repetition memory engine.
+- Orion (https://github.com/DuongNAD/orion-mcp): practice labs with real tests and tutoring-ladder hints.
+- Sirius (https://github.com/DuongNAD/sirius-mcp): execution loop: deadline sentinel, task triage, today router,
+  session timer, weekly plan-vs-actual review.
+- Mira (https://github.com/DuongNAD/mira-mcp): code-tracing lab: real Python traces, line-by-line players with
+  prediction gates, embeddable in Aurora `trace` slides.
 - SmartDrive-OS (https://github.com/DuongNAD/smart-drive-os): exFAT SSD governance, index and learning search.
 - mcp-agy: delegates coding work to Google Antigravity.
 - Constellation (this project): registration, health, updates, contracts.
@@ -82,9 +87,18 @@ Reference for config formats and edge cases (read only): SmartDrive-OS smart_dri
   them (SmartDrive protection rules).
 - `post-write-hook`: `smart-drive update <dir> --quiet` (who calls it, when, how to disable).
 - `source-labels`: "Khóa học" / "Mở rộng" / "chưa xác minh" and how Aurora `source` and Polaris fact labels map.
-- `personal-data`: canonical ignore patterns for personal learning data (.vega/, **/progress.jsonl, aurora-progress-*.jsonl, orion-attempts.jsonl, .polaris/) and third-party/regenerable files (**/polaris/captures/, **/polaris/.cache/). Includes machine-readable patterns.json and automated .gitignore validator.
+- `personal-data`: canonical ignore patterns for personal learning data (.vega/, **/progress.jsonl, aurora-progress-*.jsonl, orion-attempts.jsonl, .polaris/, .sirius/) and third-party/regenerable files (**/polaris/captures/, **/polaris/.cache/). Includes machine-readable patterns.json and automated .gitignore validator (8 patterns).
+- `vega-card-inbox.v1`: the one entry point for review items. Producers (polaris, orion, mira, aurora, sirius, manual) write
+  JSONL card candidates (fields: v, t, producer, key `<producer>:...`, subject, deck, kind basic|cloze|reverse, front, back, hint,
+  hook, origin {kind, path, locator, href}, tags, reason; unknown fields rejected) to `<hub>/.vega/inbox/<producer>-<stamp>-<hex>.jsonl`;
+  Vega alone validates, de-duplicates by key and schedules with FSRS. Zod validator mirrors the reference consumer (trimmed values,
+  code-point lengths, calendar-checked `t`, no emoji in front) and reports per-line errors.
+- `mira-embed.v1`: the postMessage protocol between a Mira player and the Aurora deck that embeds it in a `trace` slide:
+  player -> parent `ready {title, steps, stops}`, `event {event}` (aurora-progress-event.v1; `predict` relayed, `complete`
+  ignored) and `blur`; parent -> player `hello {theme, accent?}`. The parent accepts only messages from its own trace iframes with
+  source "mira" and v 1. Validator reads one message per line, in either direction.
 Each contract has a Markdown page and, where it is data, a JSON Schema / pattern registry and fixtures that other repositories can use
-in their own tests.
+in their own tests (`contracts/<name>/schema.json`, `contracts/<name>/fixtures/valid|invalid.jsonl`).
 
 ## Layout and build
 src/ (manifest, agents/{claude, antigravity, cursor, codex}, health, doctor, update, contracts, index = MCP + CLI),
@@ -101,9 +115,19 @@ and fake MCP server scripts. Checks:
 - doctor groups unmanaged servers into one line per agent, and reports empty manifests cleanly;
 - health reports fake server tools and timing, broken server error;
 - multi-server unregister writes each file once with a pre-run backup; `--forget` removes manifest entries; second run is a no-op;
-- contracts validate valid/invalid fixtures with line numbers (including card events).
+- contracts validate valid/invalid fixtures with line numbers (including card events);
+- `vega-card-inbox.v1` and `mira-embed.v1`: `list`/`show`/`validate` over MCP and CLI, valid fixtures pass, every invalid fixture
+  line is reported by number and rule, boundary cases generated under %TEMP% (600/601 chars, 10/11 tags, calendar dates, BOM, empty
+  file, JSON array), and each `schema.json` agrees with the validator on every fixture line (ajv from the toolchain);
+- `personal-data`: valid `.gitignore` fixtures cover 8/8 patterns, a 0.1.6-style block reports `.sirius/` missing, and
+  `patterns.json`, the README table and the fixtures list the same patterns as the validator.
 
 ## Status
+- 2026-10-12: v0.1.7 released. New shared contracts `vega-card-inbox.v1` (one adaptive review queue: producers drop card
+  candidates in `<hub>/.vega/inbox/`, Vega alone validates, dedupes and schedules) and `mira-embed.v1` (postMessage protocol between
+  Mira players and Aurora `trace` slides), each with README, JSON Schema, fixtures and a line validator reachable through
+  `eco_contracts` and `constellation contracts validate`; `personal-data` gains `.sirius/` (8 patterns); Orion, Sirius and Mira added
+  to the guide overview, server instructions, README tables and diagram. New contracts are patch releases, as with `personal-data` in 0.1.3.
 - 2026-10-11: v0.1.6 released. Register resolves ${secret:NAME} (env, then ~/.constellation/secrets.json) instead of
   writing the placeholder, refuses unresolvable secrets, and compares real values so rotated keys propagate; doctor
   flags leftover placeholders and secrets that differ from the store.

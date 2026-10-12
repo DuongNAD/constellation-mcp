@@ -218,6 +218,8 @@ const ok = (name, cond, detail = "") => {
   console.log(`${cond ? "ok  " : "FAIL"} ${name}${detail ? `  (${detail})` : ""}`);
 };
 const textOf = (r) => (r.content ?? []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
+// True when the validator output has an error line "Line <n>: ..." that contains `needle`.
+const lineHas = (out, n, needle) => out.split("\n").some((l) => l.includes(`Line ${n}: `) && l.includes(needle));
 
 /* ───────── Start Real MCP Client over stdio ───────── */
 console.log("\n--- Real MCP Server Stdio Tests ---");
@@ -237,9 +239,15 @@ try {
   // Test server identification and instructions
   const info = client.getServerVersion();
   ok("server identifies itself as constellation", info?.name === "constellation", `${info?.name} ${info?.version}`);
-  ok("server version is 0.1.6", info?.version === "0.1.6", info?.version);
+  ok("server version is 0.1.7", info?.version === "0.1.7", info?.version);
   const instructions = client.getInstructions() ?? "";
   ok("server sends instructions with workflow and rules", instructions.includes("Workflow:") && instructions.includes("Rules:"));
+  ok(
+    "server instructions list the ecosystem members and the contract validators",
+    ["Polaris", "Aurora Slides", "Vega", "Orion", "Sirius", "Mira", "SmartDrive-OS", "mcp-agy"].every((n) => instructions.includes(n)) &&
+      instructions.includes("vega-card-inbox.v1") &&
+      instructions.includes("mira-embed.v1"),
+  );
 
   // Check registered tools
   const { tools } = await client.listTools();
@@ -271,8 +279,26 @@ try {
   // 1. eco_guide
   let r = await call("eco_guide");
   ok("eco_guide overview", !r.isError && textOf(r).includes("Available topics:"));
+  ok(
+    "eco_guide overview lists Orion, Sirius and Mira with their repositories",
+    !r.isError &&
+      textOf(r).includes("Orion (https://github.com/DuongNAD/orion-mcp)") &&
+      textOf(r).includes("Sirius (https://github.com/DuongNAD/sirius-mcp)") &&
+      textOf(r).includes("Mira (https://github.com/DuongNAD/mira-mcp)") &&
+      textOf(r).includes("tutoring-ladder hints") &&
+      textOf(r).includes("weekly plan-vs-actual review") &&
+      textOf(r).includes("prediction gates"),
+  );
   r = await call("eco_guide", { topic: "manifest" });
   ok("eco_guide manifest topic", !r.isError && textOf(r).includes("ecosystem.json"));
+  r = await call("eco_guide", { topic: "contracts" });
+  ok(
+    "eco_guide contracts topic lists vega-card-inbox.v1, mira-embed.v1 and .sirius/",
+    !r.isError &&
+      textOf(r).includes("`vega-card-inbox.v1`") &&
+      textOf(r).includes("`mira-embed.v1`") &&
+      textOf(r).includes(".sirius/"),
+  );
 
   // Test doctor on empty manifest before import
   r = await call("eco_doctor");
@@ -615,8 +641,8 @@ try {
   const validGitignoreFixture = join(ROOT, "contracts", "fixtures", "valid.gitignore");
   r = await call("eco_contracts", { action: "validate", name: "personal-data", file: validGitignoreFixture });
   ok(
-    "contracts validate valid gitignore passes",
-    !r.isError && textOf(r).includes("PASSED") && textOf(r).includes("7/7 pattern(s) covered"),
+    "contracts validate valid gitignore passes (8/8 patterns)",
+    !r.isError && textOf(r).includes("PASSED") && textOf(r).includes("8/8 pattern(s) covered"),
   );
 
   const invalidGitignoreFixture = join(ROOT, "contracts", "fixtures", "invalid.gitignore");
@@ -629,7 +655,554 @@ try {
       textOf(r).includes("orion-attempts.jsonl") &&
       textOf(r).includes("**/polaris/captures/") &&
       textOf(r).includes("**/polaris/.cache/") &&
-      textOf(r).includes(".polaris/"),
+      textOf(r).includes(".polaris/") &&
+      textOf(r).includes(".sirius/") &&
+      textOf(r).includes("2/8 patterns covered"),
+  );
+
+  /* ───────── 10b. New contracts: vega-card-inbox.v1, mira-embed.v1 and personal-data .sirius/ ───────── */
+  console.log("\n--- Contracts: vega-card-inbox.v1, mira-embed.v1, personal-data .sirius/ ---");
+
+  const CLI_BIN = join(ROOT, "dist", "constellation.mjs");
+  // `constellation contracts validate <contract> <file> --json`, parsed (the CLI exits 1 when the file is invalid).
+  const validateJson = (contract, file) => {
+    try {
+      return JSON.parse(
+        execFileSync(process.execPath, [CLI_BIN, "contracts", "validate", contract, file, "--json"], {
+          env: testEnv,
+          encoding: "utf8",
+        }),
+      );
+    } catch (e) {
+      return JSON.parse(String(e.stdout));
+    }
+  };
+  // Test files live under %TEMP% (TEST_DIR), never in the repository.
+  const writeTemp = (name, content) => {
+    const p = join(TEST_DIR, name);
+    writeFileSync(p, content);
+    return p;
+  };
+  const omit = (obj, ...keys) => Object.fromEntries(Object.entries(obj).filter(([k]) => !keys.includes(k)));
+  const jsonlOf = (items) => items.map((v) => (typeof v === "string" ? v : JSON.stringify(v))).join("\n") + "\n";
+  // One JSONL file per group, one case per line: [name, record, expectedValid]. Checks which lines the validator rejects.
+  const checkCases = (contract, group, cases) => {
+    const file = writeTemp(`${contract}-${group.replace(/\W+/g, "_")}.jsonl`, jsonlOf(cases.map(([, v]) => v)));
+    const res = validateJson(contract, file);
+    const badLines = new Set((res.errors ?? []).filter((e) => e.line != null).map((e) => e.line));
+    const wrong = cases.filter(([, , expectValid], i) => badLines.has(i + 1) === expectValid).map(([name]) => name);
+    ok(
+      `${contract}: ${group} (${cases.length} cases)`,
+      res.totalLines === cases.length && wrong.length === 0,
+      wrong.length > 0 ? `unexpected result for: ${wrong.join("; ")}` : `${res.validLines} accepted, ${cases.length - res.validLines} rejected`,
+    );
+  };
+
+  // --- list / show ---
+  r = await call("eco_contracts", { action: "list" });
+  ok(
+    "contracts list shows vega-card-inbox.v1 (data) and mira-embed.v1 (protocol) with validators",
+    !r.isError &&
+      /^vega-card-inbox\.v1\s+\|\s+data\s+\|.*\|\s+Yes\s*$/m.test(textOf(r)) &&
+      /^mira-embed\.v1\s+\|\s+protocol\s+\|.*\|\s+Yes\s*$/m.test(textOf(r)),
+  );
+
+  r = await call("eco_contracts", { action: "show", name: "vega-card-inbox.v1" });
+  ok(
+    "contracts show vega-card-inbox.v1",
+    !r.isError &&
+      textOf(r).includes("# Contract: `vega-card-inbox.v1`") &&
+      textOf(r).includes("<hub>/.vega/inbox/") &&
+      textOf(r).includes("Vega alone") &&
+      textOf(r).includes("`orion-attempt`") &&
+      textOf(r).includes("Producer Key Conventions"),
+  );
+  r = await call("eco_contracts", { action: "show", name: "mira-embed.v1" });
+  ok(
+    "contracts show mira-embed.v1",
+    !r.isError &&
+      textOf(r).includes("# Contract: `mira-embed.v1`") &&
+      textOf(r).includes("postMessage") &&
+      textOf(r).includes("`hello`") &&
+      textOf(r).includes("`blur`") &&
+      textOf(r).includes("Security Notes"),
+  );
+  r = await call("eco_contracts", { action: "show", name: "mira-embed" });
+  ok("contracts show accepts the short name mira-embed", !r.isError && textOf(r).includes("# Contract: `mira-embed.v1`"));
+  r = await call("eco_contracts", { action: "show", name: "personal-data" });
+  ok(
+    "contracts show personal-data documents .sirius/",
+    !r.isError && textOf(r).includes("| `.sirius/` |") && textOf(r).includes("Sirius Execution Journal") && textOf(r).includes("all 8 canonical patterns"),
+  );
+
+  // --- vega-card-inbox.v1: shipped fixtures ---
+  const vegaValidFixture = join(ROOT, "contracts", "vega-card-inbox.v1", "fixtures", "valid.jsonl");
+  const vegaInvalidFixture = join(ROOT, "contracts", "vega-card-inbox.v1", "fixtures", "invalid.jsonl");
+  r = await call("eco_contracts", { action: "validate", name: "vega-card-inbox.v1", file: vegaValidFixture });
+  ok(
+    "vega-card-inbox.v1 validate valid fixture passes",
+    !r.isError && textOf(r).includes("PASSED") && textOf(r).includes("8/8 card line(s) valid"),
+    textOf(r).slice(0, 100),
+  );
+  r = await call("eco_contracts", { action: "validate", name: "card-inbox", file: vegaValidFixture });
+  ok("vega-card-inbox.v1 validate accepts the short name card-inbox", !r.isError && textOf(r).includes("8/8 card line(s) valid"));
+
+  r = await call("eco_contracts", { action: "validate", name: "vega-card-inbox.v1", file: vegaInvalidFixture });
+  const vegaBad = textOf(r);
+  ok(
+    "vega-card-inbox.v1 validate invalid fixture fails: no line is valid",
+    r.isError && vegaBad.includes("FAILED") && vegaBad.includes("(0/16 lines valid)"),
+    vegaBad.split("\n")[0].slice(-40),
+  );
+  ok(
+    "vega-card-inbox.v1 reports missing key, wrong producer prefix, unknown field, over-long front, bad origin kind and malformed JSON by line",
+    lineHas(vegaBad, 1, "key: required field is missing") &&
+      lineHas(vegaBad, 2, "key: must start with 'orion:'") &&
+      lineHas(vegaBad, 3, "difficulty: unknown field") &&
+      lineHas(vegaBad, 4, "front: must be at most 600 characters (got 601)") &&
+      lineHas(vegaBad, 5, "origin.kind: must be one of: polaris-fact") &&
+      lineHas(vegaBad, 6, "Malformed JSON line"),
+  );
+  ok(
+    "vega-card-inbox.v1 also reports unknown producer, time without offset, wrong v, emoji, 11 tags, missing back, unknown origin field, control character, impossible date and unknown kind",
+    lineHas(vegaBad, 7, "producer: must be one of: polaris, orion, mira, aurora, sirius, manual") &&
+      lineHas(vegaBad, 8, "t: must be an ISO 8601 date-time") &&
+      lineHas(vegaBad, 9, "v: must be 1") &&
+      lineHas(vegaBad, 10, "front: must not contain emoji") &&
+      lineHas(vegaBad, 11, "tags: must have at most 10 items (got 11)") &&
+      lineHas(vegaBad, 12, "back: required field is missing") &&
+      lineHas(vegaBad, 13, "origin.page: unknown field") &&
+      lineHas(vegaBad, 14, "key: must not contain control characters") &&
+      lineHas(vegaBad, 15, "t: must be an ISO 8601 date-time") &&
+      lineHas(vegaBad, 16, "kind: must be one of: basic, cloze, reverse"),
+  );
+
+  // --- mira-embed.v1: shipped fixtures ---
+  const miraValidFixture = join(ROOT, "contracts", "mira-embed.v1", "fixtures", "valid.jsonl");
+  const miraInvalidFixture = join(ROOT, "contracts", "mira-embed.v1", "fixtures", "invalid.jsonl");
+  r = await call("eco_contracts", { action: "validate", name: "mira-embed.v1", file: miraValidFixture });
+  ok(
+    "mira-embed.v1 validate valid fixture passes",
+    !r.isError && textOf(r).includes("PASSED") && textOf(r).includes("8/8 message line(s) valid"),
+    textOf(r).slice(0, 100),
+  );
+  r = await call("eco_contracts", { action: "validate", name: "mira-embed.v1", file: miraInvalidFixture });
+  const miraBad = textOf(r);
+  ok(
+    "mira-embed.v1 validate invalid fixture fails: no line is valid",
+    r.isError && miraBad.includes("FAILED") && miraBad.includes("(0/17 lines valid)"),
+    miraBad.split("\n")[0].slice(-40),
+  );
+  ok(
+    "mira-embed.v1 reports wrong source, wrong v, unknown kind, hello from the player, missing ready fields and bad predict event fields by line",
+    lineHas(miraBad, 1, "source: must be 'mira'") &&
+      lineHas(miraBad, 2, "v: must be 1") &&
+      lineHas(miraBad, 3, "kind: must be one of ready, event, blur") &&
+      lineHas(miraBad, 4, "source: must be 'aurora'") &&
+      lineHas(miraBad, 5, "steps: required field is missing") &&
+      lineHas(miraBad, 5, "stops: required field is missing") &&
+      lineHas(miraBad, 6, "event.rating: must be 'right' or 'different'") &&
+      lineHas(miraBad, 7, "event.slideId: must match mira-stop-<k>") &&
+      lineHas(miraBad, 8, "event.title: must be at most 200 characters (got 201)"),
+  );
+  ok(
+    "mira-embed.v1 also reports event types outside the protocol, bad accent, unknown field, non-object event, malformed JSON, missing prediction, bad theme, missing base fields and bad counts",
+    lineHas(miraBad, 9, "event.type: must be 'predict' or 'complete'") &&
+      lineHas(miraBad, 10, "accent: must be #RRGGBB") &&
+      lineHas(miraBad, 11, "key: unknown field") &&
+      lineHas(miraBad, 12, "event: ") &&
+      lineHas(miraBad, 13, "Malformed JSON line") &&
+      lineHas(miraBad, 14, "event.prediction: required field is missing") &&
+      lineHas(miraBad, 15, "theme: must be 'dark' or 'light'") &&
+      lineHas(miraBad, 16, "event.deck: required field is missing") &&
+      lineHas(miraBad, 16, "event.slide: required field is missing") &&
+      lineHas(miraBad, 17, "steps: must be a non-negative integer") &&
+      lineHas(miraBad, 17, "stops: must be a non-negative integer"),
+  );
+
+  // --- generated cases (under %TEMP%): boundaries the one-violation-per-line fixtures do not show ---
+  const cardBase = {
+    v: 1,
+    t: "2026-10-12T21:04:10+07:00",
+    producer: "orion",
+    key: "orion:Lab_X:check_a",
+    subject: "Python_Master",
+    front: "Câu hỏi",
+    back: "Trả lời",
+    origin: { kind: "orion-attempt", path: "Python_Master/Lab_X" },
+  };
+  const astral = String.fromCodePoint(0x1d465); // one code point, two UTF-16 units
+  const emojiChar = String.fromCodePoint(0x1f600);
+  const card = (over) => ({ ...cardBase, ...over });
+  const cardOrigin = (over) => card({ origin: { ...cardBase.origin, ...over } });
+
+  checkCases("vega-card-inbox.v1", "text lengths", [
+    ["front of 600 characters", card({ front: "x".repeat(600) }), true],
+    ["front of 601 characters", card({ front: "x".repeat(601) }), false],
+    ["front of 600 astral characters (1200 UTF-16 units) counts code points", card({ front: astral.repeat(600) }), true],
+    ["front of 601 astral characters", card({ front: astral.repeat(601) }), false],
+    ["front of 600 characters plus surrounding spaces is trimmed", card({ front: ` ${"x".repeat(600)} ` }), true],
+    ["whitespace-only front counts as empty", card({ front: "   " }), false],
+    ["empty back is allowed", card({ back: "" }), true],
+    ["back of 1200 characters", card({ back: "y".repeat(1200) }), true],
+    ["back of 1201 characters", card({ back: "y".repeat(1201) }), false],
+    ["hint of 200 characters", card({ hint: "h".repeat(200) }), true],
+    ["hint of 201 characters", card({ hint: "h".repeat(201) }), false],
+    ["hook of 201 characters", card({ hook: "h".repeat(201) }), false],
+    ["reason of 201 characters", card({ reason: "r".repeat(201) }), false],
+    ["subject of 120 characters", card({ subject: "s".repeat(120) }), true],
+    ["subject of 121 characters", card({ subject: "s".repeat(121) }), false],
+    ["empty subject", card({ subject: "" }), false],
+    ["deck of 121 characters", card({ deck: "d".repeat(121) }), false],
+    ["empty optional deck", card({ deck: "" }), true],
+  ]);
+  checkCases("vega-card-inbox.v1", "key rules", [
+    ["key of 200 characters", card({ key: `orion:${"k".repeat(194)}` }), true],
+    ["key of 201 characters", card({ key: `orion:${"k".repeat(195)}` }), false],
+    ["key with nothing after the producer prefix", card({ key: "orion:" }), false],
+    ["key that only looks like the prefix (orionx:)", card({ key: "orionx:a" }), false],
+    ["key of another producer", card({ key: "mira:Lab_X:stop-1" }), false],
+    ["key with a newline", card({ key: "orion:a\nb" }), false],
+    ["key with a tab", card({ key: "orion:a\tb" }), false],
+    ["key surrounded by spaces is trimmed", card({ key: "  orion:Lab_X:check_a  " }), true],
+    ["mira key for producer mira", card({ producer: "mira", key: "mira:dem-chan:stop-3", origin: { kind: "mira-stop", path: "p" } }), true],
+    ["sirius key for producer sirius", card({ producer: "sirius", key: "sirius:weekly:1" }), true],
+    ["producer vega", card({ producer: "vega" }), false],
+    ["missing producer", omit(cardBase, "producer"), false],
+  ]);
+  checkCases("vega-card-inbox.v1", "timestamps", [
+    ["Z suffix", card({ t: "2026-10-12T14:04:10Z" }), true],
+    ["fractional seconds with offset", card({ t: "2026-10-12T21:04:10.123456+07:00" }), true],
+    ["negative offset", card({ t: "2026-10-12T09:04:10-05:00" }), true],
+    ["leap day 2028-02-29", card({ t: "2028-02-29T00:00:00Z" }), true],
+    ["2026-02-29 is not a date", card({ t: "2026-02-29T00:00:00Z" }), false],
+    ["2100-02-29 is not a date (century year)", card({ t: "2100-02-29T00:00:00Z" }), false],
+    ["2000-02-29 is a date (divisible by 400)", card({ t: "2000-02-29T00:00:00Z" }), true],
+    ["April 31", card({ t: "2026-04-31T00:00:00Z" }), false],
+    ["month 13", card({ t: "2026-13-01T00:00:00Z" }), false],
+    ["hour 24", card({ t: "2026-10-12T24:00:00Z" }), false],
+    ["minute 60", card({ t: "2026-10-12T10:60:00Z" }), false],
+    ["offset +24:00", card({ t: "2026-10-12T10:00:00+24:00" }), false],
+    ["no offset", card({ t: "2026-10-12T21:04:10" }), false],
+    ["date only", card({ t: "2026-10-12" }), false],
+    ["space instead of T", card({ t: "2026-10-12 21:04:10+07:00" }), false],
+    ["no seconds", card({ t: "2026-10-12T21:04+07:00" }), false],
+    ["numeric timestamp", card({ t: 1791744074 }), false],
+    ["wrong version 2", card({ v: 2 }), false],
+    ["version as string", card({ v: "1" }), false],
+  ]);
+  checkCases("vega-card-inbox.v1", "tags, origin and kinds", [
+    ["10 tags", card({ tags: Array.from({ length: 10 }, (_v, i) => `t${i}`) }), true],
+    ["11 tags", card({ tags: Array.from({ length: 11 }, (_v, i) => `t${i}`) }), false],
+    ["empty tag list", card({ tags: [] }), true],
+    ["tag of 40 characters", card({ tags: ["t".repeat(40)] }), true],
+    ["tag of 41 characters", card({ tags: ["t".repeat(41)] }), false],
+    ["empty tag", card({ tags: [""] }), false],
+    ["tag that is not a string", card({ tags: [5] }), false],
+    ["tags that is not an array", card({ tags: "a,b" }), false],
+    ["origin.path of 400 characters", cardOrigin({ path: "p".repeat(400) }), true],
+    ["origin.path of 401 characters", cardOrigin({ path: "p".repeat(401) }), false],
+    ["origin.locator of 120 characters", cardOrigin({ locator: "l".repeat(120) }), true],
+    ["origin.locator of 121 characters", cardOrigin({ locator: "l".repeat(121) }), false],
+    ["origin.href of 400 characters", cardOrigin({ href: "h".repeat(400) }), true],
+    ["origin.href of 401 characters", cardOrigin({ href: "h".repeat(401) }), false],
+    ["origin without path", card({ origin: { kind: "manual" } }), false],
+    ["origin without kind", card({ origin: { path: "p" } }), false],
+    ["origin that is a string", card({ origin: "p" }), false],
+    ["origin kind polaris-fact", card({ origin: { kind: "polaris-fact", path: "p" } }), true],
+    ["origin kind aurora-quiz", card({ origin: { kind: "aurora-quiz", path: "p" } }), true],
+    ["origin kind notebook is unknown", card({ origin: { kind: "notebook", path: "p" } }), false],
+    ["kind reverse", card({ kind: "reverse" }), true],
+    ["kind cloze", card({ kind: "cloze", front: "Hàm [[len]] đếm phần tử" }), true],
+    ["kind palace is not a card kind here", card({ kind: "palace" }), false],
+    ["record that is an array", [cardBase], false],
+    ["record that is a JSON string", '"hello"', false],
+    ["record that is null", null, false],
+  ]);
+  checkCases("vega-card-inbox.v1", "emoji in front", [
+    ["emoji in front", card({ front: `Câu hỏi ${emojiChar}` }), false],
+    ["emoji variation selector (U+FE0F) in front", card({ front: `Ghi chú${String.fromCodePoint(0xfe0f)}` }), false],
+    ["check-mark emoji (U+2705) in front", card({ front: `Xong ${String.fromCodePoint(0x2705)}` }), false],
+    ["arrow, check mark, copyright sign and bullet are not emoji", card({ front: `a ${String.fromCodePoint(0x2192)} b ${String.fromCodePoint(0x2713)} ${String.fromCodePoint(0xa9)} ${String.fromCodePoint(0x2022)}` }), true],
+    ["emoji in back is not part of the front rule", card({ back: `Trả lời ${emojiChar}` }), true],
+  ]);
+
+  // --- mira-embed.v1 generated cases ---
+  const evBase = {
+    v: 1,
+    t: "2026-10-12T21:30:05+07:00",
+    deck: "Dò vòng lặp",
+    slide: 3,
+    slideId: "mira-stop-1",
+    type: "predict",
+    title: "Câu hỏi",
+    prediction: "1",
+    rating: "right",
+    output: "1",
+  };
+  const evMsg = (over = {}, drop = []) => ({
+    source: "mira",
+    v: 1,
+    kind: "event",
+    event: omit({ ...evBase, ...over }, ...drop),
+  });
+  const ready = (over = {}) => ({ source: "mira", v: 1, kind: "ready", title: "Dò", steps: 10, stops: 2, ...over });
+  const hello = (over = {}) => ({ source: "aurora", v: 1, kind: "hello", theme: "dark", ...over });
+
+  checkCases("mira-embed.v1", "predict event limits and fields", [
+    ["title of 200 characters", evMsg({ title: "t".repeat(200) }), true],
+    ["title of 201 characters", evMsg({ title: "t".repeat(201) }), false],
+    ["empty title", evMsg({ title: "" }), true],
+    ["prediction of 2000 characters", evMsg({ prediction: "p".repeat(2000) }), true],
+    ["prediction of 2001 characters", evMsg({ prediction: "p".repeat(2001) }), false],
+    ["empty prediction", evMsg({ prediction: "" }), true],
+    ["output of 300 characters", evMsg({ output: "o".repeat(300) }), true],
+    ["output of 301 characters", evMsg({ output: "o".repeat(301) }), false],
+    ["rating right", evMsg({ rating: "right" }), true],
+    ["rating different", evMsg({ rating: "different" }), true],
+    ["rating good (valid in aurora-progress-event.v1, not here)", evMsg({ rating: "good" }), false],
+    ["rating got", evMsg({ rating: "got" }), false],
+    ["missing rating", evMsg({}, ["rating"]), false],
+    ["missing title", evMsg({}, ["title"]), false],
+    ["missing output", evMsg({}, ["output"]), false],
+    ["missing slideId", evMsg({}, ["slideId"]), false],
+    ["slideId mira-stop-0", evMsg({ slideId: "mira-stop-0" }), true],
+    ["slideId mira-stop-12", evMsg({ slideId: "mira-stop-12" }), true],
+    ["slideId mira-stop- (no number)", evMsg({ slideId: "mira-stop-" }), false],
+    ["slideId mira-stop-x", evMsg({ slideId: "mira-stop-x" }), false],
+    ["slideId mira-stop-1x", evMsg({ slideId: "mira-stop-1x" }), false],
+    ["slideId with a prefix (s_trace_1:mira-stop-1)", evMsg({ slideId: "s_trace_1:mira-stop-1" }), false],
+    ["slideId null", evMsg({ slideId: null }), false],
+    ["course and lesson null", evMsg({ course: null, lesson: null }), true],
+    ["course and lesson strings", evMsg({ course: "python-master", lesson: "02-vong-lap" }), true],
+    ["event version 2", evMsg({ v: 2 }), false],
+    ["event slide -1", evMsg({ slide: -1 }), false],
+    ["event slide as string", evMsg({ slide: "3" }), false],
+    ["event without t", evMsg({}, ["t"]), false],
+    ["event with empty deck", evMsg({ deck: "" }), false],
+  ]);
+  checkCases("mira-embed.v1", "other event types", [
+    ["complete event", evMsg({ type: "complete", slides: 42, quiz: null, predictions: "1/2" }, ["title", "prediction", "rating", "output", "slideId"]), true],
+    ["complete event with only the required base fields", evMsg({ type: "complete" }, ["title", "prediction", "rating", "output", "slideId"]), true],
+    ["complete event with a bad predictions type", evMsg({ type: "complete", predictions: 3 }, ["title", "prediction", "rating", "output", "slideId"]), false],
+    ["quiz event", evMsg({ type: "quiz" }), false],
+    ["recall event", evMsg({ type: "recall" }), false],
+    ["card event", evMsg({ type: "card" }), false],
+    ["event without type", evMsg({}, ["type"]), false],
+    ["event type that is not a string", evMsg({ type: 5 }), false],
+    ["event that is null", { source: "mira", v: 1, kind: "event", event: null }, false],
+    ["event that is an array", { source: "mira", v: 1, kind: "event", event: [evBase] }, false],
+    ["event message without event", { source: "mira", v: 1, kind: "event" }, false],
+    ["event message with an extra field", { ...evMsg(), note: "x" }, false],
+  ]);
+  checkCases("mira-embed.v1", "ready, hello, blur and envelope", [
+    ["ready", ready(), true],
+    ["ready with 0 steps and 0 stops", ready({ steps: 0, stops: 0 }), true],
+    ["ready title of 200 characters", ready({ title: "t".repeat(200) }), true],
+    ["ready title of 201 characters", ready({ title: "t".repeat(201) }), false],
+    ["ready with fractional stops", ready({ stops: 2.5 }), false],
+    ["ready with negative steps", ready({ steps: -1 }), false],
+    ["ready with steps as string", ready({ steps: "10" }), false],
+    ["ready without title", omit(ready(), "title"), false],
+    ["ready with an extra field", ready({ theme: "dark" }), false],
+    ["hello dark", hello(), true],
+    ["hello light with accent", hello({ theme: "light", accent: "#112233" }), true],
+    ["hello with a lowercase accent", hello({ accent: "#e8a23b" }), true],
+    ["hello accent with 3 digits", hello({ accent: "#FFF" }), false],
+    ["hello accent with 8 digits", hello({ accent: "#E8A23BFF" }), false],
+    ["hello accent without #", hello({ accent: "E8A23B" }), false],
+    ["hello accent with a non-hex digit", hello({ accent: "#E8A23G" }), false],
+    ["hello without theme", omit(hello(), "theme"), false],
+    ["hello with theme sepia", hello({ theme: "sepia" }), false],
+    ["hello sent with the player source", hello({ source: "mira" }), false],
+    ["ready sent with the parent source", ready({ source: "aurora" }), false],
+    ["event sent with the parent source", { ...evMsg(), source: "aurora" }, false],
+    ["blur", { source: "mira", v: 1, kind: "blur" }, true],
+    ["blur sent with the parent source", { source: "aurora", v: 1, kind: "blur" }, false],
+    ["blur with an extra field", { source: "mira", v: 1, kind: "blur", key: "Escape" }, false],
+    ["v as string", { source: "mira", v: "1", kind: "blur" }, false],
+    ["missing v", { source: "mira", kind: "blur" }, false],
+    ["missing source", { v: 1, kind: "blur" }, false],
+    ["missing kind", { source: "mira", v: 1 }, false],
+    ["unknown kind", { source: "mira", v: 1, kind: "resize" }, false],
+    ["message that is an array", [], false],
+    ["message that is null", null, false],
+    ["message that is a number", 5, false],
+    ["message that is a JSON string", '"ready"', false],
+  ]);
+
+  // --- file-level behaviour, both JSON Lines validators ---
+  for (const [contract, sampleLine] of [
+    ["vega-card-inbox.v1", JSON.stringify(cardBase)],
+    ["mira-embed.v1", JSON.stringify({ source: "mira", v: 1, kind: "blur" })],
+  ]) {
+    const badLine = contract === "vega-card-inbox.v1" ? JSON.stringify(omit(cardBase, "key")) : JSON.stringify({ source: "x", v: 1, kind: "blur" });
+    const bom = Buffer.from([0xef, 0xbb, 0xbf]);
+    let res = validateJson(contract, writeTemp(`${contract}-bom-crlf.jsonl`, Buffer.concat([bom, Buffer.from(`${sampleLine}\r\n${sampleLine}\r\n`, "utf8")])));
+    ok(`${contract}: a UTF-8 BOM and CRLF line endings are tolerated`, res.ok === true && res.totalLines === 2 && res.validLines === 2, `${res.validLines}/${res.totalLines}`);
+
+    res = validateJson(contract, writeTemp(`${contract}-blank-lines.jsonl`, `${sampleLine}\n\n   \n${badLine}\n${sampleLine}`));
+    ok(
+      `${contract}: blank lines are skipped and line numbers stay physical`,
+      res.ok === false && res.totalLines === 3 && res.validLines === 2 && res.errors.length >= 1 && res.errors.every((e) => e.line === 4),
+      JSON.stringify(res.errors.map((e) => e.line)),
+    );
+
+    res = validateJson(contract, writeTemp(`${contract}-empty.jsonl`, ""));
+    ok(`${contract}: an empty file is not valid`, res.ok === false && res.totalLines === 0 && res.errors.some((e) => e.message.includes("no JSON Lines records")));
+    res = validateJson(contract, writeTemp(`${contract}-only-newlines.jsonl`, "\n\n\n"));
+    ok(`${contract}: a file with only blank lines is not valid`, res.ok === false && res.totalLines === 0);
+
+    res = validateJson(contract, writeTemp(`${contract}-array.json`, `[${sampleLine},${sampleLine}]`));
+    ok(
+      `${contract}: a JSON array is reported once as the wrong format`,
+      res.ok === false && res.errors.length === 1 && res.errors[0].message.includes("JSON array") && res.errors[0].line === 1,
+      JSON.stringify(res.errors.map((e) => e.message.slice(0, 40))),
+    );
+
+    res = validateJson(contract, writeTemp(`${contract}-latin1.jsonl`, Buffer.concat([Buffer.from(`${sampleLine.slice(0, 20)}`, "utf8"), Buffer.from([0xff, 0xfe, 0xe9]), Buffer.from(`${sampleLine.slice(20)}\n`, "utf8")])));
+    ok(`${contract}: a file that is not valid UTF-8 is rejected`, res.ok === false && res.errors.some((e) => e.message.includes("not valid UTF-8")));
+
+    res = validateJson(contract, join(TEST_DIR, `${contract}-does-not-exist.jsonl`));
+    ok(`${contract}: a missing file is reported`, res.ok === false && res.errors.some((e) => e.message.includes("File not found")));
+
+    res = validateJson(contract, writeTemp(`${contract}-pretty.json`, JSON.stringify(JSON.parse(sampleLine), null, 2) + "\n"));
+    ok(`${contract}: a pretty-printed object is reported as malformed JSON lines`, res.ok === false && res.errors.some((e) => e.message.includes("Malformed JSON line")));
+  }
+
+  // --- each schema.json must agree with the validator on every fixture line ---
+  // Portable JSON Schema cannot express the emoji rule or the calendar validity of t, so lines the validator
+  // rejects only for those two reasons are allowed to pass the schema.
+  const Ajv = req("ajv");
+  for (const contract of ["vega-card-inbox.v1", "mira-embed.v1"]) {
+    let validateSchema;
+    let schemaProblem = "";
+    try {
+      validateSchema = new Ajv({ allErrors: true, strict: true, allowUnionTypes: true }).compile(
+        JSON.parse(readFileSync(join(ROOT, "contracts", contract, "schema.json"), "utf8")),
+      );
+    } catch (e) {
+      schemaProblem = String(e?.message ?? e);
+    }
+    ok(`${contract}: schema.json is a valid draft-07 JSON Schema`, typeof validateSchema === "function", schemaProblem);
+    if (typeof validateSchema !== "function") continue;
+
+    let compared = 0;
+    const disagreements = [];
+    for (const fixture of ["valid", "invalid"]) {
+      const file = join(ROOT, "contracts", contract, "fixtures", `${fixture}.jsonl`);
+      const res = validateJson(contract, file);
+      const messagesByLine = new Map();
+      for (const e of res.errors) {
+        if (e.line != null) messagesByLine.set(e.line, [...(messagesByLine.get(e.line) ?? []), e.message]);
+      }
+      readFileSync(file, "utf8")
+        .split(/\r?\n/)
+        .forEach((lineText, i) => {
+          if (!lineText.trim()) return;
+          let record;
+          try {
+            record = JSON.parse(lineText);
+          } catch {
+            return; // malformed JSON line: nothing for a schema to judge
+          }
+          compared++;
+          const messages = messagesByLine.get(i + 1) ?? [];
+          const schemaAccepts = validateSchema(record) === true;
+          const validatorAccepts = messages.length === 0;
+          const validatorOnly = messages.length > 0 && messages.every((m) => /emoji|ISO 8601 date-time/.test(m));
+          if (schemaAccepts !== validatorAccepts && !(schemaAccepts && validatorOnly)) {
+            disagreements.push(`${fixture}.jsonl line ${i + 1}`);
+          }
+        });
+    }
+    ok(
+      `${contract}: schema.json agrees with the validator on ${compared} fixture lines`,
+      compared > 0 && disagreements.length === 0,
+      disagreements.join(", "),
+    );
+  }
+
+  // --- the JSON examples printed in the two READMEs must pass the validator ---
+  for (const contract of ["vega-card-inbox.v1", "mira-embed.v1"]) {
+    const readme = readFileSync(join(ROOT, "contracts", contract, "README.md"), "utf8");
+    const examples = [...readme.matchAll(/```json\r?\n([\s\S]*?)```/g)].map((m) => JSON.stringify(JSON.parse(m[1])));
+    const res = validateJson(contract, writeTemp(`${contract}-readme-examples.jsonl`, `${examples.join("\n")}\n`));
+    ok(
+      `${contract}: the ${examples.length} JSON examples in its README are valid`,
+      examples.length >= 1 && res.ok === true && res.validLines === examples.length,
+      JSON.stringify(res.errors.map((e) => `${e.line}: ${e.message}`)),
+    );
+  }
+
+  // --- personal-data: .sirius/ is the 8th canonical pattern and every description of the patterns agrees ---
+  const patternsDoc = JSON.parse(readFileSync(join(ROOT, "contracts", "personal-data", "patterns.json"), "utf8"));
+  const patternList = patternsDoc.patterns.map((p) => p.pattern);
+  const siriusPattern = patternsDoc.patterns.find((p) => p.pattern === ".sirius/");
+  ok(
+    "personal-data patterns.json has 8 patterns, with .sirius/ owned by Sirius as personal data",
+    patternList.length === 8 &&
+      siriusPattern?.category === "personal" &&
+      siriusPattern?.owner === "sirius" &&
+      siriusPattern?.ownerProject === "Sirius (sirius-mcp)" &&
+      siriusPattern?.description.startsWith("Sirius execution journal: study sessions with minutes and outcomes") &&
+      siriusPattern?.description.includes("triage.json read by pick_today.py") &&
+      siriusPattern?.remediation.includes("git rm -r --cached .sirius/"),
+    patternList.join(" "),
+  );
+  const pdReadme = readFileSync(join(ROOT, "contracts", "personal-data", "README.md"), "utf8");
+  const gitignoreFixtures = [
+    join(ROOT, "contracts", "fixtures", "valid.gitignore"),
+    join(ROOT, "contracts", "personal-data", "fixtures", "valid.gitignore"),
+  ];
+  ok(
+    "personal-data README and both valid.gitignore fixtures list every pattern of patterns.json",
+    patternList.every(
+      (p) =>
+        pdReadme.includes(`\`${p}\``) &&
+        gitignoreFixtures.every((f) => readFileSync(f, "utf8").split(/\r?\n/).includes(p)),
+    ),
+  );
+  ok(
+    "the two valid.gitignore copies are identical",
+    readFileSync(gitignoreFixtures[0], "utf8") === readFileSync(gitignoreFixtures[1], "utf8"),
+  );
+  const everyPatternPath = writeTemp("every-pattern.gitignore", `${patternList.join("\n")}\n`);
+  const everyPatternRes = validateJson("personal-data", everyPatternPath);
+  ok(
+    "the validator knows exactly the patterns of patterns.json",
+    everyPatternRes.ok === true && everyPatternRes.totalLines === patternList.length && everyPatternRes.validLines === patternList.length,
+    `${everyPatternRes.validLines}/${everyPatternRes.totalLines} vs ${patternList.length} in patterns.json`,
+  );
+
+  const withoutSirius = readFileSync(validGitignoreFixture, "utf8")
+    .split(/\r?\n/)
+    .filter((l) => l.trim() !== ".sirius/")
+    .join("\n");
+  r = await call("eco_contracts", { action: "validate", name: "personal-data", file: writeTemp("legacy-7.gitignore", withoutSirius) });
+  ok(
+    "a .gitignore written for 0.1.6 (7 patterns) is reported as missing only .sirius/",
+    r.isError &&
+      textOf(r).includes("7/8 patterns covered") &&
+      textOf(r).includes("Missing pattern '.sirius/' (Sirius (sirius-mcp): Sirius execution journal") &&
+      (textOf(r).match(/Missing pattern/g) ?? []).length === 1,
+    textOf(r).split("\n")[0].slice(-60),
+  );
+  const coverageOf = (rule) => validateJson("personal-data", writeTemp("sirius-rule.gitignore", `${withoutSirius}\n${rule}\n`));
+  const covering = [".sirius", "/.sirius/", ".sirius/*", "**/.sirius/", ".s*"];
+  const notCovering = ["sirius/", ".sirius-old/", "!.sirius/", "# .sirius/", ".siriu"];
+  ok(
+    "rules .sirius, /.sirius/, .sirius/*, **/.sirius/ and .s* cover the .sirius/ pattern",
+    covering.every((rule) => coverageOf(rule).ok === true),
+    covering.filter((rule) => coverageOf(rule).ok !== true).join(" "),
+  );
+  ok(
+    "rules sirius/, .sirius-old/, !.sirius/, a comment and .siriu do not cover .sirius/",
+    notCovering.every((rule) => {
+      const res = coverageOf(rule);
+      return res.ok === false && res.validLines === 7;
+    }),
+    notCovering.filter((rule) => coverageOf(rule).ok !== false).join(" "),
   );
 
   /* ───────── 11. CLI Integration Checks ───────── */
@@ -643,7 +1216,7 @@ try {
 
   // Version command
   const verOut = execFileSync(process.execPath, [cliBin, "version"], { env: testEnv, encoding: "utf8" }).trim();
-  ok("CLI version prints 0.1.6", verOut === "0.1.6");
+  ok("CLI version prints 0.1.7", verOut === "0.1.7");
 
   // Status command
   const statusOut = execFileSync(process.execPath, [cliBin, "status"], { env: testEnv, encoding: "utf8" });
@@ -691,8 +1264,8 @@ try {
     encoding: "utf8",
   });
   ok(
-    "CLI contracts validate valid gitignore passes",
-    valGitOut.includes("OK: Contract 'personal-data' valid (7/7 patterns covered)"),
+    "CLI contracts validate valid gitignore passes (8/8 patterns)",
+    valGitOut.includes("OK: Contract 'personal-data' valid (8/8 patterns covered)"),
   );
 
   // Validate invalid gitignore fixture via CLI
@@ -712,10 +1285,86 @@ try {
         out.includes("orion-attempts.jsonl") &&
         out.includes("**/polaris/captures/") &&
         out.includes("**/polaris/.cache/") &&
-        out.includes(".polaris/"),
+        out.includes(".polaris/") &&
+        out.includes(".sirius/"),
     );
   }
   ok("CLI contracts validate invalid gitignore exits non-zero", invalidGitFailedAsExpected);
+
+  // CLI: contracts list/show/validate for vega-card-inbox.v1 and mira-embed.v1
+  const cliListJson = JSON.parse(
+    execFileSync(process.execPath, [cliBin, "contracts", "list", "--json"], { env: testEnv, encoding: "utf8" }),
+  );
+  const cliContract = (name) => cliListJson.find((c) => c.name === name);
+  ok(
+    "CLI contracts list --json: 7 contracts, the two new ones have validators and every schemaPath exists",
+    cliListJson.length === 7 &&
+      cliContract("vega-card-inbox.v1")?.hasValidator === true &&
+      cliContract("vega-card-inbox.v1")?.type === "data" &&
+      cliContract("mira-embed.v1")?.hasValidator === true &&
+      cliContract("mira-embed.v1")?.type === "protocol" &&
+      cliListJson.filter((c) => c.schemaPath).every((c) => existsSync(c.schemaPath)),
+    cliListJson.map((c) => c.name).join(", "),
+  );
+  const cliListText = execFileSync(process.execPath, [cliBin, "contracts", "list"], { env: testEnv, encoding: "utf8" });
+  ok(
+    "CLI contracts list prints both new contracts",
+    cliListText.includes("vega-card-inbox.v1") && cliListText.includes("mira-embed.v1"),
+  );
+  const cliShowCard = execFileSync(process.execPath, [cliBin, "contracts", "show", "vega-card-inbox"], { env: testEnv, encoding: "utf8" });
+  ok(
+    "CLI contracts show vega-card-inbox (short name) prints the contract",
+    cliShowCard.includes("# Contract: `vega-card-inbox.v1`") && cliShowCard.includes("Consumer Rules (Vega)"),
+  );
+
+  for (const [contract, validFile, invalidFile, validCount, expectations] of [
+    [
+      "vega-card-inbox.v1",
+      vegaValidFixture,
+      vegaInvalidFixture,
+      8,
+      [
+        [1, "key: required field is missing"],
+        [2, "key: must start with 'orion:'"],
+        [3, "difficulty: unknown field"],
+        [4, "front: must be at most 600 characters"],
+        [5, "origin.kind"],
+      ],
+    ],
+    [
+      "mira-embed.v1",
+      miraValidFixture,
+      miraInvalidFixture,
+      8,
+      [
+        [1, "source: must be 'mira'"],
+        [4, "source: must be 'aurora'"],
+        [6, "event.rating"],
+        [7, "event.slideId"],
+        [9, "event.type"],
+      ],
+    ],
+  ]) {
+    const okOut = execFileSync(process.execPath, [cliBin, "contracts", "validate", contract, validFile], { env: testEnv, encoding: "utf8" });
+    ok(
+      `CLI contracts validate ${contract} valid fixture passes`,
+      okOut.includes(`OK: Contract '${contract}' valid (${validCount}/${validCount} lines)`),
+      okOut.slice(0, 80),
+    );
+    let exitCode = 0;
+    let failOut = "";
+    try {
+      execFileSync(process.execPath, [cliBin, "contracts", "validate", contract, invalidFile], { env: testEnv, encoding: "utf8" });
+    } catch (e) {
+      exitCode = e.status;
+      failOut = String(e.stdout ?? "") + String(e.stderr ?? "");
+    }
+    ok(
+      `CLI contracts validate ${contract} invalid fixture exits 1 with per-line errors`,
+      exitCode === 1 && failOut.includes(`FAIL: Contract '${contract}' validation failed`) && expectations.every(([n, needle]) => lineHas(failOut, n, needle)),
+      `exit ${exitCode}`,
+    );
+  }
 
   // Secrets resolve at register time: an agent that does not have the server yet gets the real value, never the
   // ${secret:...} placeholder; a secret that cannot be resolved is refused.

@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VegaCardInboxLineV1",
+  "description": "JSON Schema for one line of a Vega card inbox file (contract vega-card-inbox.v1). Covers structure, enums, lengths and the producer-key prefix rule. The Constellation validator is authoritative: it also ignores leading and trailing whitespace before measuring, checks that t is a real calendar date-time, and rejects emoji in front (not expressible in portable JSON Schema).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "t", "producer", "key", "subject", "front", "back", "origin"],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1,
+      "description": "Contract schema version (always 1)"
+    },
+    "t": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "ISO 8601 date-time with an offset or Z"
+    },
+    "producer": {
+      "type": "string",
+      "enum": ["polaris", "orion", "mira", "aurora", "sirius", "manual"],
+      "description": "Project that produced the card candidate"
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "description": "Stable dedupe key; must start with '<producer>:' followed by an identifier (see allOf)"
+    },
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "Subject folder name such as Machine_Learning, or its display name"
+    },
+    "deck": {
+      "type": "string",
+      "maxLength": 120,
+      "description": "Lesson, module, lab, or player title"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["basic", "cloze", "reverse"],
+      "default": "basic",
+      "description": "Card kind; cloze fronts mark each deletion as [[...]]"
+    },
+    "front": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 600,
+      "description": "Learner-language prompt (Vietnamese), one idea per card, no emoji; inline markup allowed: **bold**, `code`, $math$, [[cloze]]"
+    },
+    "back": {
+      "type": "string",
+      "maxLength": 1200,
+      "description": "Answer; may be empty"
+    },
+    "hint": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "hook": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Memory hook"
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "polaris-fact",
+            "polaris-errorlog",
+            "polaris-selfcheck",
+            "aurora-quiz",
+            "aurora-predict",
+            "orion-attempt",
+            "mira-stop",
+            "manual"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "description": "File or folder the card comes from"
+        },
+        "locator": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Place inside the origin, e.g. 'stop 3'"
+        },
+        "href": {
+          "type": "string",
+          "maxLength": 400,
+          "description": "Link that opens the origin, e.g. a Mira player with #stop-3"
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      }
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Why the card was created, e.g. a missed prediction"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "producer": { "const": "polaris" } }, "required": ["producer"] },
+      "then": { "properties": { "key": { "type": "string", "pattern": "^polaris:." } } }
+    },
+    {
+      "if": { "properties": { "producer": { "const": "orion" } }, "required": ["producer"] },
+      "then": { "properties": { "key": { "type": "string", "pattern": "^orion:." } } }
+    },
+    {
+      "if": { "properties": { "producer": { "const": "mira" } }, "required": ["producer"] },
+      "then": { "properties": { "key": { "type": "string", "pattern": "^mira:." } } }
+    },
+    {
+      "if": { "properties": { "producer": { "const": "aurora" } }, "required": ["producer"] },
+      "then": { "properties": { "key": { "type": "string", "pattern": "^aurora:." } } }
+    },
+    {
+      "if": { "properties": { "producer": { "const": "sirius" } }, "required": ["producer"] },
+      "then": { "properties": { "key": { "type": "string", "pattern": "^sirius:." } } }
+    },
+    {
+      "if": { "properties": { "producer": { "const": "manual" } }, "required": ["producer"] },
+      "then": { "properties": { "key": { "type": "string", "pattern": "^manual:." } } }
+    }
+  ]
+}

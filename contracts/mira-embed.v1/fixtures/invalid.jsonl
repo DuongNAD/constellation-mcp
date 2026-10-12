@@ -1,0 +1,17 @@
+{"source":"evil","v":1,"kind":"blur"}
+{"source":"mira","v":2,"kind":"blur"}
+{"source":"mira","v":1,"kind":"resize"}
+{"source":"mira","v":1,"kind":"hello","theme":"dark"}
+{"source":"mira","v":1,"kind":"ready","title":"Dò vòng lặp"}
+{"source":"mira","v":1,"kind":"event","event":{"v":1,"t":"2026-10-12T21:30:05+07:00","course":"python-master","lesson":"02-vong-lap","deck":"Dò vòng lặp đếm số chẵn","slide":14,"slideId":"mira-stop-1","type":"predict","title":"Sau lần lặp thứ hai, dem bằng bao nhiêu?","prediction":"1","rating":"good","output":"1"}}
+{"source":"mira","v":1,"kind":"event","event":{"v":1,"t":"2026-10-12T21:30:05+07:00","course":"python-master","lesson":"02-vong-lap","deck":"Dò vòng lặp đếm số chẵn","slide":14,"slideId":"stop-1","type":"predict","title":"Sau lần lặp thứ hai, dem bằng bao nhiêu?","prediction":"1","rating":"right","output":"1"}}
+{"source":"mira","v":1,"kind":"event","event":{"v":1,"t":"2026-10-12T21:30:05+07:00","course":"python-master","lesson":"02-vong-lap","deck":"Dò vòng lặp đếm số chẵn","slide":14,"slideId":"mira-stop-1","type":"predict","title":"Câu hỏi dự đoán dài lặp lại Câu hỏi dự đoán dài lặp lại Câu hỏi dự đoán dài lặp lại Câu hỏi dự đoán dài lặp lại Câu hỏi dự đoán dài lặp lại Câu hỏi dự đoán dài lặp lại Câu hỏi dự đoán dài lặp lại Câu .","prediction":"1","rating":"right","output":"1"}}
+{"source":"mira","v":1,"kind":"event","event":{"v":1,"t":"2026-10-12T21:30:05+07:00","deck":"Dò vòng lặp đếm số chẵn","slide":3,"type":"quiz"}}
+{"source":"aurora","v":1,"kind":"hello","theme":"dark","accent":"#FFF"}
+{"source":"mira","v":1,"kind":"blur","key":"Escape"}
+{"source":"mira","v":1,"kind":"event","event":"predict"}
+{"source":"mira","v":1,"kind":"event","event":{"v":1,
+{"source":"mira","v":1,"kind":"event","event":{"v":1,"t":"2026-10-12T21:30:05+07:00","course":"python-master","lesson":"02-vong-lap","deck":"Dò vòng lặp đếm số chẵn","slide":14,"slideId":"mira-stop-1","type":"predict","title":"Sau lần lặp thứ hai, dem bằng bao nhiêu?","rating":"right","output":"1"}}
+{"source":"aurora","v":1,"kind":"hello","theme":"sepia"}
+{"source":"mira","v":1,"kind":"event","event":{"v":1,"t":"2026-10-12T21:30:05+07:00","type":"complete"}}
+{"source":"mira","v":1,"kind":"ready","title":"Dò vòng lặp","steps":-1,"stops":1.5}

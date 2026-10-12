@@ -16,6 +16,9 @@ flowchart TD
     SmartDrive["SmartDrive-OS\n(Quản trị SSD & Tìm kiếm)"]
     McpAgy["mcp-agy\n(Ủy quyền Antigravity)"]
     Vega["Vega MCP\n(Bộ nhớ FSRS Spaced Repetition)"]
+    Orion["Orion MCP\n(Bài thực hành & Thang gợi ý)"]
+    Sirius["Sirius MCP\n(Vòng lặp thực thi & Hạn chót)"]
+    Mira["Mira MCP\n(Phòng dò code)"]
   end
 
   subgraph ControlPlane["Trung tâm điều khiển"]
@@ -40,9 +43,17 @@ flowchart TD
   Constellation -->|Kiểm tra sức khỏe & Cập nhật| Aurora
   Constellation -->|Kiểm tra sức khỏe & Cập nhật| SmartDrive
   Constellation -->|Kiểm tra sức khỏe & Cập nhật| McpAgy
+  Constellation -->|Kiểm tra sức khỏe & Cập nhật| Vega
+  Constellation -->|Kiểm tra sức khỏe & Cập nhật| Orion
+  Constellation -->|Kiểm tra sức khỏe & Cập nhật| Sirius
+  Constellation -->|Kiểm tra sức khỏe & Cập nhật| Mira
 
   Aurora -.->|aurora-progress-event.v1| Polaris
   Aurora -.->|aurora-progress-event.v1 (card)| Vega
+  Polaris -.->|vega-card-inbox.v1| Vega
+  Orion -.->|vega-card-inbox.v1| Vega
+  Mira -.->|vega-card-inbox.v1| Vega
+  Mira -.->|mira-embed.v1| Aurora
   Polaris -.->|post-write-hook| SmartDrive
   Aurora -.->|post-write-hook| SmartDrive
 ```
@@ -53,11 +64,13 @@ flowchart TD
 
 | Máy chủ / Công cụ | Mã nguồn (Repo) | Mục đích | Hợp đồng dùng chung |
 |---|---|---|---|
-| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Thiết kế lộ trình học, tra cứu dữ liệu, lịch ôn tập ngắt quãng | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data` |
-| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Slide thuyết trình, bài tập tương tác, slide thẻ SRS | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data` |
-| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | Bộ nhớ thuật toán FSRS (`vega_sync`) | `aurora-progress-event.v1` (sự kiện `card`), `personal-data` |
+| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Thiết kế lộ trình học, tra cứu dữ liệu, lịch ôn tập ngắt quãng | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `vega-card-inbox.v1` |
+| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Slide thuyết trình, bài tập tương tác, slide thẻ SRS, slide `trace` của Mira | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `mira-embed.v1` |
+| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | Bộ nhớ thuật toán FSRS (`vega_sync`, hộp thư thẻ) | `aurora-progress-event.v1` (sự kiện `card`), `vega-card-inbox.v1`, `personal-data` |
 | **SmartDrive-OS** | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) | Quản trị SSD, tìm kiếm ngữ nghĩa BM25/vector | `learning-units`, `post-write-hook`, `personal-data` |
-| **Orion** | [orion-mcp](https://github.com/DuongNAD/orion-mcp) | Kiểm chứng giả thuyết và bài thí nghiệm tương tác | `personal-data` |
+| **Orion** | [orion-mcp](https://github.com/DuongNAD/orion-mcp) | Bài thực hành có test thật và thang gợi ý từng bậc | `personal-data`, `vega-card-inbox.v1` |
+| **Sirius** | [sirius-mcp](https://github.com/DuongNAD/sirius-mcp) | Vòng lặp thực thi: canh hạn chót, phân loại việc, định tuyến hôm nay, bấm giờ phiên học, đối chiếu kế hoạch và thực tế hằng tuần | `personal-data` |
+| **Mira** | [mira-mcp](https://github.com/DuongNAD/mira-mcp) | Phòng dò code: vết chạy Python thật, trình phát từng dòng với điểm dừng dự đoán, nhúng được vào slide `trace` của Aurora | `mira-embed.v1`, `aurora-progress-event.v1` (sự kiện `predict`, `complete`), `vega-card-inbox.v1`, `personal-data` |
 | **mcp-agy** | [mcp-agy](https://github.com/DuongNAD/mcp-agy) | Cổng ủy quyền Google Antigravity cho subagent | — |
 
 ---
@@ -69,7 +82,7 @@ Khi vận hành nhiều MCP server trên các công cụ lập trình khác nhau
 2. Các agent khác nhau có thể ghi đè làm lệch hoặc mất cấu hình của nhau.
 3. Khi mở hội thoại trước khi server khởi động xong, agent báo lỗi không liên kết được công cụ.
 4. Các subagent không giao diện (headless như `mcp-agy`) cần cấu hình gọn nhẹ, không muốn nạp toàn bộ công cụ IDE.
-5. Các hợp đồng chung giữa các dự án (như sự kiện tiến độ v1, đánh dấu bài học, hook sau khi ghi, nhãn nguồn tài liệu, mẫu loại trừ dữ liệu cá nhân) nằm rải rác.
+5. Các hợp đồng chung giữa các dự án (như sự kiện tiến độ v1, hộp thư thẻ của Vega, giao thức nhúng của Mira, đánh dấu bài học, hook sau khi ghi, nhãn nguồn tài liệu, mẫu loại trừ dữ liệu cá nhân) nằm rải rác.
 
 Constellation hợp nhất toàn bộ cấu hình, kiểm tra và bảo trì vào một nguồn chân lý duy nhất.
 
@@ -133,7 +146,7 @@ Thêm Constellation vào tệp cấu hình agent của bạn:
 | `eco_health` | Khởi động máy chủ qua stdio, bắt tay client, kiểm tra danh sách công cụ và đo độ trễ. |
 | `eco_doctor` | Phát hiện lệch cấu hình, đường dẫn tệp không tồn tại, gom nhóm danh sách server chưa quản lý. |
 | `eco_update` | Cập nhật an toàn với `git pull --ff-only` trên cây mã nguồn sạch, chạy lệnh `build` và `test`. |
-| `eco_contracts` | Xem danh sách hợp đồng chung, xem tài liệu đặc tả và kiểm định tệp sự kiện tiến độ JSON/JSONL. |
+| `eco_contracts` | Xem danh sách hợp đồng chung, xem tài liệu đặc tả và kiểm định tệp JSONL (sự kiện tiến độ, dòng thẻ trong hộp thư Vega, thông điệp nhúng của Mira) cùng độ phủ của `.gitignore`. |
 
 ---
 
@@ -165,6 +178,12 @@ node dist/constellation.mjs doctor
 # Kiểm định hợp đồng sự kiện
 node dist/constellation.mjs contracts validate aurora-progress-event.v1 contracts/fixtures/valid-progress.jsonl
 
+# Kiểm định các dòng thẻ trong hộp thư Vega (báo lỗi theo từng dòng, tóm tắt OK)
+node dist/constellation.mjs contracts validate vega-card-inbox.v1 contracts/vega-card-inbox.v1/fixtures/valid.jsonl
+
+# Kiểm định thông điệp nhúng của Mira (trình phát <-> deck Aurora)
+node dist/constellation.mjs contracts validate mira-embed.v1 contracts/mira-embed.v1/fixtures/valid.jsonl
+
 # Kiểm định tệp .gitignore theo hợp đồng dữ liệu cá nhân
 node dist/constellation.mjs contracts validate personal-data .gitignore
 ```
@@ -177,12 +196,19 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 2. [`learning-units`](contracts/learning-units/README.md): Quy chuẩn đánh dấu thư mục học tập (`course.json`, `deck.json`, `polaris/brief.json`) và quy tắc bảo vệ của SmartDrive.
 3. [`post-write-hook`](contracts/post-write-hook/README.md): Cơ chế thông báo cập nhật ngầm `smart-drive update <dir> --quiet`.
 4. [`source-labels`](contracts/source-labels/README.md): Quy ước nhãn tài liệu "Khóa học" / "Mở rộng" / "chưa xác minh".
-5. [`personal-data`](contracts/personal-data/README.md): Các mẫu loại trừ chuẩn (canonical ignore patterns) cho dữ liệu học tập cá nhân nhạy cảm (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`, `.polaris/`) và tài nguyên bên thứ ba/tạo lại được (`**/polaris/captures/`, `**/polaris/.cache/`). Đi kèm bộ kiểm định `.gitignore` tự động.
+5. [`personal-data`](contracts/personal-data/README.md): Các mẫu loại trừ chuẩn (canonical ignore patterns) cho dữ liệu học tập cá nhân nhạy cảm (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`, `.polaris/`, `.sirius/`) và tài nguyên bên thứ ba/tạo lại được (`**/polaris/captures/`, `**/polaris/.cache/`). Đi kèm bộ kiểm định `.gitignore` tự động.
+6. [`vega-card-inbox.v1`](contracts/vega-card-inbox.v1/README.md): Một hàng đợi ôn tập thích ứng duy nhất. Polaris, Orion và Mira (cùng Aurora, Sirius, nhập tay) thả ứng viên thẻ dưới dạng tệp JSON Lines vào `<hub>/.vega/inbox/`; chỉ Vega kiểm tra, loại trùng theo khóa và xếp lịch bằng FSRS. Đi kèm JSON Schema, fixtures và bộ kiểm định từng dòng.
+7. [`mira-embed.v1`](contracts/mira-embed.v1/README.md): Giao thức `postMessage` giữa trình phát Mira (iframe) và deck Aurora nhúng nó trong slide `trace`: `ready`, `event`, `blur` từ trình phát, `hello` từ deck. Đi kèm JSON Schema, fixtures và bộ kiểm định thông điệp.
 
 ---
 
 ## Lịch sử phiên bản
 
+- **0.1.7** (2026-10-12):
+  - **Hợp đồng hộp thư thẻ Vega (`vega-card-inbox.v1`)**: một hàng đợi ôn tập thích ứng duy nhất. Polaris, Orion và Mira thả ứng viên thẻ dưới dạng tệp JSON Lines vào `<hub>/.vega/inbox/`, chỉ Vega kiểm tra, loại trùng theo khóa và xếp lịch bằng FSRS. Có README, JSON Schema, fixtures và bộ kiểm định (`constellation contracts validate vega-card-inbox.v1 <file>`) báo lỗi theo từng dòng.
+  - **Hợp đồng nhúng Mira (`mira-embed.v1`)**: giao thức `postMessage` giữa trình phát Mira và slide `trace` của Aurora (`ready`, `event`, `blur` từ trình phát, `hello` từ deck), kèm quy tắc trường, sự kiện được chuyển tiếp, lưu ý bảo mật, JSON Schema, fixtures và bộ kiểm định thông điệp.
+  - **`personal-data` nay có 8 mẫu chuẩn**: `.sirius/` bảo vệ nhật ký thực thi của Sirius (phiên học, ý định thực hiện, quyết định phân loại việc, `triage.json` suy ra). Fixture `.gitignore` hợp lệ phủ 8/8 mẫu; `.gitignore` viết theo bản 0.1.6 sẽ bị báo thiếu `.sirius/`.
+  - **Danh sách hệ sinh thái**: Orion, Sirius, Mira được thêm vào phần hướng dẫn tổng quan, chỉ dẫn của server, bảng và sơ đồ README; `contracts list`/`show`/`validate` nhận biết hai hợp đồng mới và chấp nhận tên ngắn `vega-card-inbox`, `card-inbox`, `mira-embed`.
 - **0.1.6** (2026-10-11):
   - Register thay `${secret:NAME}` bằng giá trị thật lấy từ biến môi trường hoặc `~/.constellation/secrets.json`; agent đã có server chỉ giữ giá trị cũ khi kho secret không có; secret không tìm được thì bị từ chối (không bao giờ ghi chuỗi tham chiếu).
   - Register so sánh giá trị thật (hiển thị vẫn che), nên key mới hoặc chuỗi tham chiếu còn sót sẽ được cập nhật ("updated secret value ... (values hidden)").

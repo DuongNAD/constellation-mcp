@@ -9,7 +9,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 import { AGENT_MAP, ALL_AGENTS, getAgents } from "./agents/index.js";
-import { CONTRACTS, listContracts, showContract, validateContract } from "./contracts/index.js";
+import { listContracts, showContract, validateContract, validationSummary } from "./contracts/index.js";
 import { runDoctor } from "./doctor.js";
 import { getGuideTopic, TOPICS } from "./guide.js";
 import { checkAllHealth, checkServerHealth } from "./health.js";
@@ -63,6 +63,8 @@ async function safe(fn: () => Promise<ToolResult>): Promise<ToolResult> {
 
 const INSTRUCTIONS = `Constellation MCP manages the learner's MCP ecosystem — manifest, registration into coding agents, health checks, drift doctor, safe updates, and shared contracts.
 
+Ecosystem members (all by DuongNAD): Polaris (course architect), Aurora Slides (decks), Vega (FSRS memory), Orion (practice labs), Sirius (execution loop), Mira (code tracing), SmartDrive-OS (SSD governance), mcp-agy (Antigravity delegation).
+
 Workflow:
 1. eco_status to inspect registered servers and agent sync status.
 2. eco_import to bootstrap manifest from existing agent configs.
@@ -70,7 +72,7 @@ Workflow:
 4. eco_health to verify server connectivity over stdio and list tools.
 5. eco_doctor to detect drift between agent configs, check missing paths, and inspect Antigravity copies.
 6. eco_update to safely pull (ff-only) and build git-backed servers.
-7. eco_contracts to inspect and validate shared ecosystem contracts.
+7. eco_contracts to inspect and validate shared ecosystem contracts (aurora-progress-event.v1, vega-card-inbox.v1, mira-embed.v1, personal-data).
 
 Rules:
 - Safety first: dry run before writes, never leak secrets (env values matching KEY/TOKEN/SECRET/PASSWORD/AUTH are masked with '***').
@@ -608,10 +610,10 @@ export async function startMcp(): Promise<void> {
     {
       title: "Manage and validate shared ecosystem contracts",
       description:
-        "List shared contracts, view specifications, or validate data files against contract schemas (e.g. aurora-progress-event.v1, personal-data).",
+        "List shared contracts, view specifications, or validate data files against contract schemas (aurora-progress-event.v1, vega-card-inbox.v1, mira-embed.v1 and personal-data have validators).",
       inputSchema: {
         action: z.enum(["list", "show", "validate"]).describe("Contract operation to perform"),
-        name: z.string().optional().describe("Contract name (e.g. 'aurora-progress-event.v1')"),
+        name: z.string().optional().describe("Contract name (e.g. 'aurora-progress-event.v1', 'vega-card-inbox.v1', 'mira-embed.v1', 'personal-data')"),
         file: z.string().optional().describe("Path to data file to validate when action is 'validate'"),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
@@ -638,19 +640,13 @@ export async function startMcp(): Promise<void> {
           }
           const res = validateContract(name, resolve(file));
           if (res.ok) {
-            const countLabel = name.includes("personal-data")
-              ? `${res.validLines}/${res.totalLines} pattern(s) covered`
-              : `${res.validLines}/${res.totalLines} event line(s) valid`;
-            return text(`Contract validation PASSED for '${name}': ${countLabel} in ${res.file}`);
+            return text(`Contract validation PASSED for '${name}': ${validationSummary(res, "mcp")} in ${res.file}`);
           }
           const errLines = res.errors.map((e) =>
             e.line != null ? `  - Line ${e.line}: ${e.message}` : `  - ${e.message}`,
           );
-          const failSummary = name.includes("personal-data")
-            ? `${res.validLines}/${res.totalLines} patterns covered`
-            : `${res.validLines}/${res.totalLines} lines valid`;
           return text(
-            `Contract validation FAILED for '${name}' in ${res.file} (${failSummary}):\n${errLines.join("\n")}`,
+            `Contract validation FAILED for '${name}' in ${res.file} (${validationSummary(res, "mcp")}):\n${errLines.join("\n")}`,
             true,
           );
         }
@@ -955,10 +951,7 @@ export async function cli(rawArgs: string[]): Promise<number> {
           console.log(JSON.stringify(res, null, 2));
         } else {
           if (res.ok) {
-            const countLabel = contractName.includes("personal-data")
-              ? `${res.validLines}/${res.totalLines} patterns covered`
-              : `${res.validLines}/${res.totalLines} lines`;
-            console.log(`OK: Contract '${contractName}' valid (${countLabel}) in ${res.file}`);
+            console.log(`OK: Contract '${contractName}' valid (${validationSummary(res, "cli")}) in ${res.file}`);
           } else {
             console.error(`FAIL: Contract '${contractName}' validation failed in ${res.file}:`);
             res.errors.forEach((e) => {

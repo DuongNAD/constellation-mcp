@@ -10,4 +10,5 @@ orion-attempts.jsonl
 **/polaris/captures/
 **/polaris/.cache/
 .polaris/
+.sirius/
 # <<< smart-drive managed <<<

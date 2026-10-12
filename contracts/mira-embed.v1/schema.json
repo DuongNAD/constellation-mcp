@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MiraEmbedMessageV1",
+  "description": "JSON Schema for one postMessage payload of the mira-embed.v1 protocol, in either direction: ready, event and blur (player to parent, source 'mira') and hello (parent to player, source 'aurora'). The event carried by an 'event' message is an aurora-progress-event.v1 object narrowed to what Mira players send.",
+  "oneOf": [
+    { "$ref": "#/definitions/ready" },
+    { "$ref": "#/definitions/event" },
+    { "$ref": "#/definitions/blur" },
+    { "$ref": "#/definitions/hello" }
+  ],
+  "definitions": {
+    "ready": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "v", "kind", "title", "steps", "stops"],
+      "properties": {
+        "source": { "const": "mira" },
+        "v": { "const": 1 },
+        "kind": { "const": "ready" },
+        "title": { "type": "string", "maxLength": 200, "description": "Player title" },
+        "steps": { "type": "integer", "minimum": 0, "description": "Number of recorded trace steps" },
+        "stops": { "type": "integer", "minimum": 0, "description": "Number of prediction stops" }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "v", "kind", "event"],
+      "properties": {
+        "source": { "const": "mira" },
+        "v": { "const": 1 },
+        "kind": { "const": "event" },
+        "event": { "$ref": "#/definitions/progressEvent" }
+      }
+    },
+    "blur": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "v", "kind"],
+      "properties": {
+        "source": { "const": "mira" },
+        "v": { "const": 1 },
+        "kind": { "const": "blur" }
+      }
+    },
+    "hello": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "v", "kind", "theme"],
+      "properties": {
+        "source": { "const": "aurora" },
+        "v": { "const": 1 },
+        "kind": { "const": "hello" },
+        "theme": { "enum": ["dark", "light"] },
+        "accent": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "description": "Omitted when the deck accent is not a hex colour"
+        }
+      }
+    },
+    "progressEvent": {
+      "type": "object",
+      "required": ["v", "t", "deck", "slide", "type"],
+      "properties": {
+        "v": { "const": 1 },
+        "t": { "type": "string", "minLength": 1, "description": "ISO 8601 timestamp" },
+        "course": { "type": ["string", "null"] },
+        "lesson": { "type": ["string", "null"] },
+        "deck": { "type": "string", "minLength": 1 },
+        "slide": { "type": "integer", "minimum": 0, "description": "Step index of the player" },
+        "slideId": { "type": ["string", "null"] },
+        "type": { "enum": ["predict", "complete"] },
+        "slides": { "type": "integer" },
+        "quiz": { "type": ["string", "null"] },
+        "predictions": { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "predict" } }, "required": ["type"] },
+          "then": {
+            "required": ["title", "prediction", "rating", "output", "slideId"],
+            "properties": {
+              "title": { "type": "string", "maxLength": 200 },
+              "prediction": { "type": "string", "maxLength": 2000 },
+              "rating": { "enum": ["right", "different"] },
+              "output": { "type": "string", "maxLength": 300 },
+              "slideId": { "type": "string", "pattern": "^mira-stop-\\d+$" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

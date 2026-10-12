@@ -7,9 +7,13 @@ import { fileURLToPath } from "node:url";
 import { ContractInfo, ContractValidationResult } from "../types.js";
 import { validateProgressFile } from "./progress-event.js";
 import { validatePersonalDataGitignore } from "./personal-data.js";
+import { validateVegaCardInboxFile } from "./vega-card-inbox.js";
+import { validateMiraEmbedFile } from "./mira-embed.js";
 
 export * from "./progress-event.js";
 export * from "./personal-data.js";
+export * from "./vega-card-inbox.js";
+export * from "./mira-embed.js";
 export * from "./generate-schema.js";
 
 function findContractRoot(): string {
@@ -71,20 +75,56 @@ export const CONTRACTS: Record<string, ContractInfo> = {
     name: "personal-data",
     title: "Personal Learning Data & Sensitive Files Ignore Contract",
     description:
-      "Canonical ignore patterns for sensitive personal learning data (Vega memory, Aurora progress events, Orion attempts, Polaris learner profile) and third-party/regenerable files (Polaris captures, cache).",
+      "Canonical ignore patterns for sensitive personal learning data (Vega memory, Aurora progress events, Orion attempts, Polaris learner profile, Sirius execution journal) and third-party/regenerable files (Polaris captures, cache).",
     type: "data",
     schemaPath: join(CONTRACT_ROOT, "personal-data", "patterns.json"),
     hasValidator: true,
   },
+  "vega-card-inbox.v1": {
+    name: "vega-card-inbox.v1",
+    title: "Vega Card Inbox Contract v1",
+    description:
+      "One adaptive review queue: Polaris, Orion, Mira (and Aurora, Sirius, manual) drop card candidates as JSON Lines files in <hub>/.vega/inbox/; Vega alone validates, de-duplicates by key and schedules them with FSRS.",
+    type: "data",
+    schemaPath: join(CONTRACT_ROOT, "vega-card-inbox.v1", "schema.json"),
+    hasValidator: true,
+  },
+  "mira-embed.v1": {
+    name: "mira-embed.v1",
+    title: "Mira Player Embed Protocol v1",
+    description:
+      "postMessage protocol between a Mira code-tracing player (iframe) and the Aurora Slides deck that embeds it in a trace slide: ready, event and blur from the player, hello from the deck.",
+    type: "protocol",
+    schemaPath: join(CONTRACT_ROOT, "mira-embed.v1", "schema.json"),
+    hasValidator: true,
+  },
 };
+
+/** Short names accepted next to the canonical contract names. */
+const CONTRACT_ALIASES: Record<string, string> = {
+  "progress-event": "aurora-progress-event.v1",
+  "aurora-progress-event": "aurora-progress-event.v1",
+  personal: "personal-data",
+  gitignore: "personal-data",
+  "vega-card-inbox": "vega-card-inbox.v1",
+  "card-inbox": "vega-card-inbox.v1",
+  "mira-embed": "mira-embed.v1",
+};
+
+/** Resolves a contract name or alias to the canonical name (unknown names are returned trimmed). */
+export function resolveContractName(name: string): string {
+  const norm = name.trim();
+  if (CONTRACTS[norm]) return norm;
+  return CONTRACT_ALIASES[norm.toLowerCase()] ?? norm;
+}
 
 export function listContracts(): ContractInfo[] {
   return Object.values(CONTRACTS);
 }
 
 export function showContract(name: string): string {
-  const norm = name.trim();
-  const info = CONTRACTS[norm];
+  const canonical = resolveContractName(name);
+  const info = CONTRACTS[canonical];
   if (!info) {
     return `Contract '${name}' not found. Available contracts:\n${Object.keys(CONTRACTS).map((k) => `  - ${k}`).join("\n")}`;
   }
@@ -98,14 +138,22 @@ export function showContract(name: string): string {
 }
 
 export function validateContract(name: string, filePath: string): ContractValidationResult {
-  const norm = name.trim();
-  if (norm === "aurora-progress-event.v1" || norm === "progress-event") {
-    return validateProgressFile(filePath);
-  }
-  if (norm === "personal-data" || norm === "personal" || norm === "gitignore") {
-    return validatePersonalDataGitignore(filePath);
+  const canonical = resolveContractName(name);
+  switch (canonical) {
+    case "aurora-progress-event.v1":
+      return validateProgressFile(filePath);
+    case "personal-data":
+      return validatePersonalDataGitignore(filePath);
+    case "vega-card-inbox.v1":
+      return validateVegaCardInboxFile(filePath);
+    case "mira-embed.v1":
+      return validateMiraEmbedFile(filePath);
   }
 
+  const validators = Object.values(CONTRACTS)
+    .filter((c) => c.hasValidator)
+    .map((c) => `'${c.name}'`)
+    .join(", ");
   return {
     ok: false,
     contract: name,
@@ -114,8 +162,27 @@ export function validateContract(name: string, filePath: string): ContractValida
     validLines: 0,
     errors: [
       {
-        message: `Contract '${name}' does not have an automated data validator (type: ${CONTRACTS[name]?.type ?? "unknown"}). Available validators: 'aurora-progress-event.v1', 'personal-data'`,
+        message: `Contract '${name}' does not have an automated data validator (type: ${CONTRACTS[canonical]?.type ?? "unknown"}). Available validators: ${validators}`,
       },
     ],
   };
+}
+
+/**
+ * The counts of a validation result in the wording of the surface that prints them. The unit differs by contract:
+ * events (aurora-progress-event.v1), cards (vega-card-inbox.v1), messages (mira-embed.v1), patterns (personal-data).
+ */
+export function validationSummary(res: ContractValidationResult, surface: "mcp" | "cli"): string {
+  const counts = `${res.validLines}/${res.totalLines}`;
+  if (res.contract === "personal-data") {
+    return res.ok && surface === "mcp" ? `${counts} pattern(s) covered` : `${counts} patterns covered`;
+  }
+  if (surface === "cli") {
+    return `${counts} lines`;
+  }
+  if (!res.ok) {
+    return `${counts} lines valid`;
+  }
+  const unit = res.contract === "vega-card-inbox.v1" ? "card" : res.contract === "mira-embed.v1" ? "message" : "event";
+  return `${counts} ${unit} line(s) valid`;
 }

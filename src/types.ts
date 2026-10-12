@@ -122,7 +122,7 @@ export interface ContractInfo {
   name: string;
   title: string;
   description: string;
-  type: "data" | "process" | "convention";
+  type: "data" | "process" | "convention" | "protocol";
   schemaPath?: string;
   hasValidator: boolean;
 }

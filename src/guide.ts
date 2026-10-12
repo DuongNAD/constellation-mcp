@@ -30,6 +30,9 @@ Ecosystem Projects:
 - Polaris (https://github.com/DuongNAD/polaris-mcp): Course architect, evidence research, spaced reviews.
 - Aurora Slides (https://github.com/DuongNAD/aurora-slides-mcp): Keynote-style decks, interactive learning, progress events.
 - Vega (https://github.com/DuongNAD/vega-mcp): FSRS spaced repetition memory engine.
+- Orion (https://github.com/DuongNAD/orion-mcp): Practice labs with real tests and tutoring-ladder hints.
+- Sirius (https://github.com/DuongNAD/sirius-mcp): Execution loop: deadline sentinel, task triage, today router, session timer, weekly plan-vs-actual review.
+- Mira (https://github.com/DuongNAD/mira-mcp): Code-tracing lab: real Python traces, line-by-line players with prediction gates, embeddable in Aurora \`trace\` slides.
 - SmartDrive-OS (https://github.com/DuongNAD/smart-drive-os): SSD governance, index, learning search.
 - mcp-agy: Delegation to Google Antigravity.
 - Constellation (this project): Registration, health, updates, and shared contracts.`,
@@ -132,9 +135,11 @@ Constellation maintains the shared specifications that keep ecosystem tools alig
 2. \`learning-units\`: Standard folder markers (course.json, deck.json, polaris/brief.json) and SmartDrive SSD protection rules.
 3. \`post-write-hook\`: Debounced \`smart-drive update <dir> --quiet\` notification hook.
 4. \`source-labels\`: "Khóa học" / "Mở rộng" / "chưa xác minh" evidence labels.
-5. \`personal-data\`: Canonical ignore patterns for personal learning data (.vega/, **/progress.jsonl, aurora-progress-*.jsonl, orion-attempts.jsonl, .polaris/) and third-party/regenerable files (**/polaris/captures/, **/polaris/.cache/).
+5. \`personal-data\`: Canonical ignore patterns for personal learning data (.vega/, **/progress.jsonl, aurora-progress-*.jsonl, orion-attempts.jsonl, .polaris/, .sirius/) and third-party/regenerable files (**/polaris/captures/, **/polaris/.cache/).
+6. \`vega-card-inbox.v1\`: One adaptive review queue. Polaris, Orion, Mira (and Aurora, Sirius, manual) drop card candidates as JSON Lines files in <hub>/.vega/inbox/; Vega alone validates, de-duplicates by key and schedules them with FSRS.
+7. \`mira-embed.v1\`: postMessage protocol between a Mira player (iframe) and the Aurora deck that embeds it in a \`trace\` slide: ready, event and blur from the player, hello from the deck.
 
-Use \`eco_contracts\` to view schemas or validate data files (.jsonl events, .gitignore patterns).`,
+Use \`eco_contracts\` to view schemas or validate data files (.jsonl events, card inbox lines, embed messages, .gitignore patterns).`,
 
   rules: `# Safety & Operating Rules
 
