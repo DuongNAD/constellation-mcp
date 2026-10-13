@@ -65,17 +65,57 @@ flowchart TD
 
 ## Ecosystem Overview
 
-| Server / Tool | Repository | Purpose | Shared Contracts |
-|---|---|---|---|
-| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Course architect, evidence research, spaced reviews | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `vega-card-inbox.v1` |
-| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Keynote-style decks, interactive recall, SRS slides, Mira `trace` slides | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `mira-embed.v1` |
-| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | FSRS spaced repetition memory engine (`vega_sync`, card inbox) | `aurora-progress-event.v1` (`card` event), `vega-card-inbox.v1`, `personal-data` |
-| **SmartDrive-OS** | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) | SSD workspace governance, BM25/vector search | `learning-units`, `post-write-hook`, `personal-data` |
-| **Orion** | [orion-mcp](https://github.com/DuongNAD/orion-mcp) | Practice labs with real tests and tutoring-ladder hints | `personal-data`, `vega-card-inbox.v1` |
-| **Sirius** | [sirius-mcp](https://github.com/DuongNAD/sirius-mcp) | Execution loop: deadline sentinel, task triage, today router, session timer, weekly plan-vs-actual review | `personal-data` |
-| **Mira** | [mira-mcp](https://github.com/DuongNAD/mira-mcp) | Code-tracing lab: real Python traces, line-by-line players with prediction gates, embeddable in Aurora `trace` slides | `mira-embed.v1`, `aurora-progress-event.v1` (`predict`, `complete` events), `vega-card-inbox.v1`, `personal-data` |
-| **Rigel** (rigel-mcp) | — | Grounded Q&A over the learner's lesson materials, refs and coverage; feeds the Vega inbox | `vega-card-inbox.v1` |
-| **mcp-agy** | [mcp-agy](https://github.com/DuongNAD/mcp-agy) | Google Antigravity delegation gateway | — |
+All projects by DuongNAD:
+
+| Project | Role | Repository |
+| :--- | :--- | :--- |
+| **Polaris** | Course architect: sources, facts with locators, roadmap, schedule, error log | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) |
+| **Aurora Slides** | Keynote-style lessons: quizzes, predict and trace slides, progress events | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) |
+| **Vega** | FSRS memory engine and the single review queue (card inbox) | [vega-mcp](https://github.com/DuongNAD/vega-mcp) |
+| **Orion** | Practice labs with real tests, tutoring ladder and PRIMM warm-up | [orion-mcp](https://github.com/DuongNAD/orion-mcp) |
+| **Mira** | Code-tracing lab: real Python traces, line-by-line players with prediction gates | [mira-mcp](https://github.com/DuongNAD/mira-mcp) |
+| **Rigel** | Grounded tutor: answers from the learner's lesson materials with [ref] citations | [rigel-mcp](https://github.com/DuongNAD/rigel-mcp) |
+| **Sirius** | Execution loop: deadlines, triage, today router, session timer, weekly review | [sirius-mcp](https://github.com/DuongNAD/sirius-mcp) |
+| **Constellation** | MCP registration, health checks and shared contracts | [constellation-mcp](https://github.com/DuongNAD/constellation-mcp) |
+| **SmartDrive-OS** | SSD governance, index and learning search | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) |
+
+### Connections
+
+- Registers every server in Claude Code, Antigravity, Cursor and Codex, checks health and drift, and owns the shared contracts: `aurora-progress-event.v1`, `vega-card-inbox.v1`, `mira-embed.v1`, `personal-data`, `learning-units`, `post-write-hook`, `source-labels`.
+
+---
+
+## Ecosystem data flows
+
+Solid arrows are data one server hands to another; dashed arrows are read-only access (evidence, file discovery) or control-plane registration.
+
+```mermaid
+flowchart LR
+  subgraph Learn["Learning servers"]
+    POL["Polaris<br>course architect"]
+    AUR["Aurora Slides<br>lessons"]
+    VEGA["Vega<br>review queue"]
+    ORI["Orion<br>practice labs"]
+    MIRA["Mira<br>code tracing"]
+    RIG["Rigel<br>grounded tutor"]
+    SIR["Sirius<br>execution loop"]
+  end
+  CON["Constellation<br>control plane"]
+  SD["SmartDrive-OS<br>SSD index"]
+  POL -->|"lesson outlines"| AUR
+  AUR -->|"progress events"| POL
+  MIRA -->|"trace slides"| AUR
+  RIG -->|"refs as locators"| POL
+  POL -->|"card inbox"| VEGA
+  ORI -->|"card inbox"| VEGA
+  MIRA -->|"card inbox"| VEGA
+  RIG -->|"card inbox"| VEGA
+  ORI -->|"counter-example trace"| MIRA
+  SIR -.->|"reads evidence"| Learn
+  SD -.->|"file discovery"| RIG
+  SD -.->|"file discovery"| SIR
+  CON -.->|"registers, health, contracts"| Learn
+```
 
 ---
 
@@ -203,6 +243,19 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 5. [`personal-data`](contracts/personal-data/README.md): Canonical ignore patterns for sensitive personal learning data (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`, `.polaris/`, `.sirius/`) and third-party/regenerable files (`**/polaris/captures/`, `**/polaris/.cache/`). Includes automated `.gitignore` validator.
 6. [`vega-card-inbox.v1`](contracts/vega-card-inbox.v1/README.md): One adaptive review queue. Polaris, Orion, Mira and Rigel (and Aurora, Sirius, manual) drop card candidates as JSON Lines files in `<hub>/.vega/inbox/`; Vega alone validates, deduplicates by key and schedules them with FSRS. Amended on 2026-10-13 (backward compatible, still v1) with the producer `rigel` and the origin kind `rigel-ref`. Includes JSON Schema, fixtures and a line validator.
 7. [`mira-embed.v1`](contracts/mira-embed.v1/README.md): `postMessage` protocol between a Mira player (iframe) and the Aurora deck that embeds it in a `trace` slide: `ready`, `event` and `blur` from the player, `hello` from the deck. Includes JSON Schema, fixtures and a message validator.
+
+Which server uses which contract:
+
+| Server | Contracts |
+|---|---|
+| **Polaris** | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `vega-card-inbox.v1` |
+| **Aurora Slides** | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `mira-embed.v1` |
+| **Vega** | `aurora-progress-event.v1` (`card` event), `vega-card-inbox.v1`, `personal-data` |
+| **Orion** | `personal-data`, `vega-card-inbox.v1` |
+| **Mira** | `mira-embed.v1`, `aurora-progress-event.v1` (`predict`, `complete` events), `vega-card-inbox.v1`, `personal-data` |
+| **Rigel** | `vega-card-inbox.v1` |
+| **Sirius** | `personal-data` |
+| **SmartDrive-OS** | `learning-units`, `post-write-hook`, `personal-data` |
 
 ---
 

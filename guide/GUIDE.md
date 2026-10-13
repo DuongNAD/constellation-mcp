@@ -45,6 +45,28 @@ flowchart TD
 
 ---
 
+## Ecosystem Table
+
+All projects by DuongNAD:
+
+| Project | Role | Repository |
+| :--- | :--- | :--- |
+| **Polaris** | Course architect: sources, facts with locators, roadmap, schedule, error log | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) |
+| **Aurora Slides** | Keynote-style lessons: quizzes, predict and trace slides, progress events | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) |
+| **Vega** | FSRS memory engine and the single review queue (card inbox) | [vega-mcp](https://github.com/DuongNAD/vega-mcp) |
+| **Orion** | Practice labs with real tests, tutoring ladder and PRIMM warm-up | [orion-mcp](https://github.com/DuongNAD/orion-mcp) |
+| **Mira** | Code-tracing lab: real Python traces, line-by-line players with prediction gates | [mira-mcp](https://github.com/DuongNAD/mira-mcp) |
+| **Rigel** | Grounded tutor: answers from the learner's lesson materials with [ref] citations | [rigel-mcp](https://github.com/DuongNAD/rigel-mcp) |
+| **Sirius** | Execution loop: deadlines, triage, today router, session timer, weekly review | [sirius-mcp](https://github.com/DuongNAD/sirius-mcp) |
+| **Constellation** | MCP registration, health checks and shared contracts | [constellation-mcp](https://github.com/DuongNAD/constellation-mcp) |
+| **SmartDrive-OS** | SSD governance, index and learning search | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) |
+
+### Connections
+
+- Registers every server in Claude Code, Antigravity, Cursor and Codex, checks health and drift, and owns the shared contracts: `aurora-progress-event.v1`, `vega-card-inbox.v1`, `mira-embed.v1`, `personal-data`, `learning-units`, `post-write-hook`, `source-labels`.
+
+---
+
 ## 1. Manifest (`ecosystem.json`)
 
 Located at `~/.constellation/ecosystem.json` (or `$CONSTELLATION_HOME/ecosystem.json`).

@@ -27,16 +27,16 @@ Constellation is the control plane for the learner's MCP ecosystem:
 - Shared contracts maintaining cross-project compatibility.
 
 Ecosystem Projects:
-- Polaris (https://github.com/DuongNAD/polaris-mcp): Course architect, evidence research, spaced reviews.
-- Aurora Slides (https://github.com/DuongNAD/aurora-slides-mcp): Keynote-style decks, interactive learning, progress events.
-- Vega (https://github.com/DuongNAD/vega-mcp): FSRS spaced repetition memory engine.
-- Orion (https://github.com/DuongNAD/orion-mcp): Practice labs with real tests and tutoring-ladder hints.
-- Sirius (https://github.com/DuongNAD/sirius-mcp): Execution loop: deadline sentinel, task triage, today router, session timer, weekly plan-vs-actual review.
-- Mira (https://github.com/DuongNAD/mira-mcp): Code-tracing lab: real Python traces, line-by-line players with prediction gates, embeddable in Aurora \`trace\` slides.
-- Rigel (rigel-mcp): grounded Q&A over the learner's lesson materials, refs and coverage; feeds the Vega inbox.
-- SmartDrive-OS (https://github.com/DuongNAD/smart-drive-os): SSD governance, index, learning search.
-- mcp-agy: Delegation to Google Antigravity.
-- Constellation (this project): Registration, health, updates, and shared contracts.`,
+- Polaris (https://github.com/DuongNAD/polaris-mcp): Course architect: sources, facts with locators, roadmap, schedule, error log.
+- Aurora Slides (https://github.com/DuongNAD/aurora-slides-mcp): Keynote-style lessons: quizzes, predict and trace slides, progress events.
+- Vega (https://github.com/DuongNAD/vega-mcp): FSRS memory engine and the single review queue (card inbox).
+- Orion (https://github.com/DuongNAD/orion-mcp): Practice labs with real tests, tutoring ladder and PRIMM warm-up.
+- Mira (https://github.com/DuongNAD/mira-mcp): Code-tracing lab: real Python traces, line-by-line players with prediction gates.
+- Rigel (https://github.com/DuongNAD/rigel-mcp): Grounded tutor: answers from the learner's lesson materials with [ref] citations.
+- Sirius (https://github.com/DuongNAD/sirius-mcp): Execution loop: deadlines, triage, today router, session timer, weekly review.
+- Constellation (this project): MCP registration, health checks and shared contracts.
+- SmartDrive-OS (https://github.com/DuongNAD/smart-drive-os): SSD governance, index and learning search.
+- mcp-agy: Delegation to Google Antigravity.`,
 
   manifest: `# Constellation Manifest (~/.constellation/ecosystem.json)
 

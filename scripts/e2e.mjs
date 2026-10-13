@@ -285,15 +285,30 @@ try {
       textOf(r).includes("Orion (https://github.com/DuongNAD/orion-mcp)") &&
       textOf(r).includes("Sirius (https://github.com/DuongNAD/sirius-mcp)") &&
       textOf(r).includes("Mira (https://github.com/DuongNAD/mira-mcp)") &&
-      textOf(r).includes("tutoring-ladder hints") &&
-      textOf(r).includes("weekly plan-vs-actual review") &&
+      textOf(r).includes("tutoring ladder and PRIMM warm-up") &&
+      textOf(r).includes("session timer, weekly review") &&
       textOf(r).includes("prediction gates"),
   );
   ok(
-    "eco_guide overview lists Rigel (rigel-mcp) without a repository link",
+    "eco_guide overview lists Rigel (rigel-mcp) with its repository and the canonical role",
     !r.isError &&
-      textOf(r).includes("- Rigel (rigel-mcp): grounded Q&A over the learner's lesson materials, refs and coverage; feeds the Vega inbox.") &&
-      !/Rigel \(https?:/.test(textOf(r)),
+      textOf(r).includes("- Rigel (https://github.com/DuongNAD/rigel-mcp): Grounded tutor: answers from the learner's lesson materials with [ref] citations."),
+  );
+  ok(
+    "eco_guide overview lists all nine ecosystem projects (Constellation marked as this project) and keeps mcp-agy",
+    !r.isError &&
+      [
+        "Polaris (https://github.com/DuongNAD/polaris-mcp)",
+        "Aurora Slides (https://github.com/DuongNAD/aurora-slides-mcp)",
+        "Vega (https://github.com/DuongNAD/vega-mcp)",
+        "Orion (https://github.com/DuongNAD/orion-mcp)",
+        "Mira (https://github.com/DuongNAD/mira-mcp)",
+        "Rigel (https://github.com/DuongNAD/rigel-mcp)",
+        "Sirius (https://github.com/DuongNAD/sirius-mcp)",
+        "Constellation (this project)",
+        "SmartDrive-OS (https://github.com/DuongNAD/smart-drive-os)",
+        "mcp-agy",
+      ].every((s) => textOf(r).includes(s)),
   );
   r = await call("eco_guide", { topic: "manifest" });
   ok("eco_guide manifest topic", !r.isError && textOf(r).includes("ecosystem.json"));
@@ -1212,9 +1227,12 @@ try {
     const diagram = blocks.join("\n");
     const edgeLines = diagram.split("\n").filter((l) => /-->|-\.->/.test(l));
     const unquotedEdges = edgeLines.filter((l) => !/(-->|-\.->)\|"[^"]+"\|/.test(l));
+    const flowHeading = file === "README.md" ? "## Ecosystem data flows" : "## Luồng dữ liệu trong hệ sinh thái";
     ok(
-      `${file}: the Mermaid diagram quotes every edge label, writes line breaks as <br> (never \\n), and has the Rigel node with its two edges`,
-      blocks.length === 1 &&
+      `${file}: the two Mermaid diagrams (control plane, ecosystem data flows) quote every edge label, write line breaks as <br> (never \\n), and the control plane one has the Rigel node with its two edges`,
+      blocks.length === 2 &&
+        readme.includes(flowHeading) &&
+        blocks[1].startsWith("flowchart LR") &&
         edgeLines.length > 0 &&
         unquotedEdges.length === 0 &&
         !diagram.includes("\\n") &&

@@ -65,17 +65,57 @@ flowchart TD
 
 ## Tổng quan hệ sinh thái
 
-| Máy chủ / Công cụ | Mã nguồn (Repo) | Mục đích | Hợp đồng dùng chung |
-|---|---|---|---|
-| **Polaris** | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) | Thiết kế lộ trình học, tra cứu dữ liệu, lịch ôn tập ngắt quãng | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `vega-card-inbox.v1` |
-| **Aurora Slides** | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) | Slide thuyết trình, bài tập tương tác, slide thẻ SRS, slide `trace` của Mira | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `mira-embed.v1` |
-| **Vega** | [vega-mcp](https://github.com/DuongNAD/vega-mcp) | Bộ nhớ thuật toán FSRS (`vega_sync`, hộp thư thẻ) | `aurora-progress-event.v1` (sự kiện `card`), `vega-card-inbox.v1`, `personal-data` |
-| **SmartDrive-OS** | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) | Quản trị SSD, tìm kiếm ngữ nghĩa BM25/vector | `learning-units`, `post-write-hook`, `personal-data` |
-| **Orion** | [orion-mcp](https://github.com/DuongNAD/orion-mcp) | Bài thực hành có test thật và thang gợi ý từng bậc | `personal-data`, `vega-card-inbox.v1` |
-| **Sirius** | [sirius-mcp](https://github.com/DuongNAD/sirius-mcp) | Vòng lặp thực thi: canh hạn chót, phân loại việc, định tuyến hôm nay, bấm giờ phiên học, đối chiếu kế hoạch và thực tế hằng tuần | `personal-data` |
-| **Mira** | [mira-mcp](https://github.com/DuongNAD/mira-mcp) | Phòng dò code: vết chạy Python thật, trình phát từng dòng với điểm dừng dự đoán, nhúng được vào slide `trace` của Aurora | `mira-embed.v1`, `aurora-progress-event.v1` (sự kiện `predict`, `complete`), `vega-card-inbox.v1`, `personal-data` |
-| **Rigel** (rigel-mcp) | — | Hỏi đáp có nguồn dẫn trên tài liệu bài học của người học, kèm tham chiếu và độ phủ; nạp thẻ vào hộp thư Vega | `vega-card-inbox.v1` |
-| **mcp-agy** | [mcp-agy](https://github.com/DuongNAD/mcp-agy) | Cổng ủy quyền Google Antigravity cho subagent | — |
+Mọi dự án của DuongNAD:
+
+| Dự án | Vai trò | Kho mã |
+| :--- | :--- | :--- |
+| **Polaris** | Kiến trúc khóa học: nguồn, dữ kiện có vị trí trích, lộ trình, lịch học, Sổ lỗi | [polaris-mcp](https://github.com/DuongNAD/polaris-mcp) |
+| **Aurora Slides** | Bài học kiểu keynote: trắc nghiệm, slide dự đoán và dò code, sự kiện tiến độ | [aurora-slides-mcp](https://github.com/DuongNAD/aurora-slides-mcp) |
+| **Vega** | Bộ nhớ FSRS và hàng đợi ôn tập duy nhất (hộp thư thẻ) | [vega-mcp](https://github.com/DuongNAD/vega-mcp) |
+| **Orion** | Lab thực hành chấm bằng test thật, bậc thang gợi ý, bậc khởi động PRIMM | [orion-mcp](https://github.com/DuongNAD/orion-mcp) |
+| **Mira** | Dò code: trace Python thật, trình phát từng dòng có điểm dừng dự đoán | [mira-mcp](https://github.com/DuongNAD/mira-mcp) |
+| **Rigel** | Gia sư bám tài liệu: trả lời từ tài liệu bài học, có trích dẫn [ref] | [rigel-mcp](https://github.com/DuongNAD/rigel-mcp) |
+| **Sirius** | Vòng thực thi: hạn chót, phân loại việc, hôm nay học gì, bấm giờ, tổng kết tuần | [sirius-mcp](https://github.com/DuongNAD/sirius-mcp) |
+| **Constellation** | Đăng ký MCP, kiểm tra sức khỏe, hợp đồng dữ liệu chung | [constellation-mcp](https://github.com/DuongNAD/constellation-mcp) |
+| **SmartDrive-OS** | Quản trị SSD, chỉ mục và tìm kiếm tài liệu học | [smart-drive-os](https://github.com/DuongNAD/smart-drive-os) |
+
+### Kết nối
+
+- Đăng ký mọi máy chủ vào Claude Code, Antigravity, Cursor và Codex, kiểm tra sức khỏe và lệch cấu hình, đồng thời sở hữu các hợp đồng dùng chung: `aurora-progress-event.v1`, `vega-card-inbox.v1`, `mira-embed.v1`, `personal-data`, `learning-units`, `post-write-hook`, `source-labels`.
+
+---
+
+## Luồng dữ liệu trong hệ sinh thái
+
+Mũi tên liền là dữ liệu một máy chủ chuyển cho máy chủ khác; mũi tên đứt là truy cập chỉ đọc (bằng chứng, tìm file) hoặc việc đăng ký của trung tâm điều khiển.
+
+```mermaid
+flowchart LR
+  subgraph Learn["Các máy chủ học tập"]
+    POL["Polaris<br>kiến trúc khóa học"]
+    AUR["Aurora Slides<br>bài học"]
+    VEGA["Vega<br>hàng đợi ôn tập"]
+    ORI["Orion<br>lab thực hành"]
+    MIRA["Mira<br>dò code"]
+    RIG["Rigel<br>gia sư bám tài liệu"]
+    SIR["Sirius<br>vòng thực thi"]
+  end
+  CON["Constellation<br>trung tâm điều khiển"]
+  SD["SmartDrive-OS<br>chỉ mục SSD"]
+  POL -->|"dàn ý bài học"| AUR
+  AUR -->|"sự kiện tiến độ"| POL
+  MIRA -->|"slide dò code"| AUR
+  RIG -->|"ref làm vị trí trích"| POL
+  POL -->|"hộp thư thẻ"| VEGA
+  ORI -->|"hộp thư thẻ"| VEGA
+  MIRA -->|"hộp thư thẻ"| VEGA
+  RIG -->|"hộp thư thẻ"| VEGA
+  ORI -->|"dò phản ví dụ"| MIRA
+  SIR -.->|"đọc bằng chứng"| Learn
+  SD -.->|"tìm file"| RIG
+  SD -.->|"tìm file"| SIR
+  CON -.->|"đăng ký, sức khỏe, hợp đồng"| Learn
+```
 
 ---
 
@@ -203,6 +243,19 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 5. [`personal-data`](contracts/personal-data/README.md): Các mẫu loại trừ chuẩn (canonical ignore patterns) cho dữ liệu học tập cá nhân nhạy cảm (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`, `.polaris/`, `.sirius/`) và tài nguyên bên thứ ba/tạo lại được (`**/polaris/captures/`, `**/polaris/.cache/`). Đi kèm bộ kiểm định `.gitignore` tự động.
 6. [`vega-card-inbox.v1`](contracts/vega-card-inbox.v1/README.md): Một hàng đợi ôn tập thích ứng duy nhất. Polaris, Orion, Mira và Rigel (cùng Aurora, Sirius, nhập tay) thả ứng viên thẻ dưới dạng tệp JSON Lines vào `<hub>/.vega/inbox/`; chỉ Vega kiểm tra, loại trùng theo khóa và xếp lịch bằng FSRS. Bổ sung ngày 2026-10-13 (tương thích ngược, vẫn là v1): nhà sản xuất `rigel` và loại nguồn `rigel-ref`. Đi kèm JSON Schema, fixtures và bộ kiểm định từng dòng.
 7. [`mira-embed.v1`](contracts/mira-embed.v1/README.md): Giao thức `postMessage` giữa trình phát Mira (iframe) và deck Aurora nhúng nó trong slide `trace`: `ready`, `event`, `blur` từ trình phát, `hello` từ deck. Đi kèm JSON Schema, fixtures và bộ kiểm định thông điệp.
+
+Máy chủ nào dùng hợp đồng nào:
+
+| Máy chủ | Hợp đồng |
+|---|---|
+| **Polaris** | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `vega-card-inbox.v1` |
+| **Aurora Slides** | `aurora-progress-event.v1`, `learning-units`, `post-write-hook`, `source-labels`, `personal-data`, `mira-embed.v1` |
+| **Vega** | `aurora-progress-event.v1` (sự kiện `card`), `vega-card-inbox.v1`, `personal-data` |
+| **Orion** | `personal-data`, `vega-card-inbox.v1` |
+| **Mira** | `mira-embed.v1`, `aurora-progress-event.v1` (sự kiện `predict`, `complete`), `vega-card-inbox.v1`, `personal-data` |
+| **Rigel** | `vega-card-inbox.v1` |
+| **Sirius** | `personal-data` |
+| **SmartDrive-OS** | `learning-units`, `post-write-hook`, `personal-data` |
 
 ---
 
