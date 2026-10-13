@@ -239,12 +239,12 @@ try {
   // Test server identification and instructions
   const info = client.getServerVersion();
   ok("server identifies itself as constellation", info?.name === "constellation", `${info?.name} ${info?.version}`);
-  ok("server version is 0.1.7", info?.version === "0.1.7", info?.version);
+  ok("server version is 0.1.8", info?.version === "0.1.8", info?.version);
   const instructions = client.getInstructions() ?? "";
   ok("server sends instructions with workflow and rules", instructions.includes("Workflow:") && instructions.includes("Rules:"));
   ok(
     "server instructions list the ecosystem members and the contract validators",
-    ["Polaris", "Aurora Slides", "Vega", "Orion", "Sirius", "Mira", "SmartDrive-OS", "mcp-agy"].every((n) => instructions.includes(n)) &&
+    ["Polaris", "Aurora Slides", "Vega", "Orion", "Sirius", "Mira", "Rigel", "SmartDrive-OS", "mcp-agy"].every((n) => instructions.includes(n)) &&
       instructions.includes("vega-card-inbox.v1") &&
       instructions.includes("mira-embed.v1"),
   );
@@ -289,6 +289,12 @@ try {
       textOf(r).includes("weekly plan-vs-actual review") &&
       textOf(r).includes("prediction gates"),
   );
+  ok(
+    "eco_guide overview lists Rigel (rigel-mcp) without a repository link",
+    !r.isError &&
+      textOf(r).includes("- Rigel (rigel-mcp): grounded Q&A over the learner's lesson materials, refs and coverage; feeds the Vega inbox.") &&
+      !/Rigel \(https?:/.test(textOf(r)),
+  );
   r = await call("eco_guide", { topic: "manifest" });
   ok("eco_guide manifest topic", !r.isError && textOf(r).includes("ecosystem.json"));
   r = await call("eco_guide", { topic: "contracts" });
@@ -298,6 +304,10 @@ try {
       textOf(r).includes("`vega-card-inbox.v1`") &&
       textOf(r).includes("`mira-embed.v1`") &&
       textOf(r).includes(".sirius/"),
+  );
+  ok(
+    "eco_guide contracts topic names the rigel producer and the rigel-ref origin kind of the 2026-10-13 amendment",
+    !r.isError && textOf(r).includes("Amendment 2026-10-13") && textOf(r).includes("`rigel`") && textOf(r).includes("`rigel-ref`"),
   );
 
   // Test doctor on empty manifest before import
@@ -717,6 +727,16 @@ try {
       textOf(r).includes("`orion-attempt`") &&
       textOf(r).includes("Producer Key Conventions"),
   );
+  ok(
+    "contracts show vega-card-inbox.v1 documents the 2026-10-13 amendment: producer rigel, origin kind rigel-ref, key and origin conventions",
+    !r.isError &&
+      textOf(r).includes("## Amendment 2026-10-13 (backward compatible, still v1)") &&
+      textOf(r).includes("`producer` | string | Required, one of `polaris`, `orion`, `mira`, `aurora`, `sirius`, `rigel`, `manual`.") &&
+      textOf(r).includes("`mira-stop`, `rigel-ref`, `manual`") &&
+      textOf(r).includes("`rigel:<subject or course>:<ref>:<first 8 hex of sha1(front)>`") &&
+      textOf(r).includes("`path` = absolute path of the source file") &&
+      textOf(r).includes("`D3#12 · slide 7`"),
+  );
   r = await call("eco_contracts", { action: "show", name: "mira-embed.v1" });
   ok(
     "contracts show mira-embed.v1",
@@ -741,17 +761,17 @@ try {
   r = await call("eco_contracts", { action: "validate", name: "vega-card-inbox.v1", file: vegaValidFixture });
   ok(
     "vega-card-inbox.v1 validate valid fixture passes",
-    !r.isError && textOf(r).includes("PASSED") && textOf(r).includes("8/8 card line(s) valid"),
+    !r.isError && textOf(r).includes("PASSED") && textOf(r).includes("9/9 card line(s) valid"),
     textOf(r).slice(0, 100),
   );
   r = await call("eco_contracts", { action: "validate", name: "card-inbox", file: vegaValidFixture });
-  ok("vega-card-inbox.v1 validate accepts the short name card-inbox", !r.isError && textOf(r).includes("8/8 card line(s) valid"));
+  ok("vega-card-inbox.v1 validate accepts the short name card-inbox", !r.isError && textOf(r).includes("9/9 card line(s) valid"));
 
   r = await call("eco_contracts", { action: "validate", name: "vega-card-inbox.v1", file: vegaInvalidFixture });
   const vegaBad = textOf(r);
   ok(
     "vega-card-inbox.v1 validate invalid fixture fails: no line is valid",
-    r.isError && vegaBad.includes("FAILED") && vegaBad.includes("(0/16 lines valid)"),
+    r.isError && vegaBad.includes("FAILED") && vegaBad.includes("(0/17 lines valid)"),
     vegaBad.split("\n")[0].slice(-40),
   );
   ok(
@@ -765,7 +785,7 @@ try {
   );
   ok(
     "vega-card-inbox.v1 also reports unknown producer, time without offset, wrong v, emoji, 11 tags, missing back, unknown origin field, control character, impossible date and unknown kind",
-    lineHas(vegaBad, 7, "producer: must be one of: polaris, orion, mira, aurora, sirius, manual") &&
+    lineHas(vegaBad, 7, "producer: must be one of: polaris, orion, mira, aurora, sirius, rigel, manual") &&
       lineHas(vegaBad, 8, "t: must be an ISO 8601 date-time") &&
       lineHas(vegaBad, 9, "v: must be 1") &&
       lineHas(vegaBad, 10, "front: must not contain emoji") &&
@@ -775,6 +795,11 @@ try {
       lineHas(vegaBad, 14, "key: must not contain control characters") &&
       lineHas(vegaBad, 15, "t: must be an ISO 8601 date-time") &&
       lineHas(vegaBad, 16, "kind: must be one of: basic, cloze, reverse"),
+  );
+  ok(
+    "vega-card-inbox.v1 reports a rigel line whose key carries another producer's prefix (line 17), and nothing else on that line",
+    lineHas(vegaBad, 17, "key: must start with 'rigel:' followed by an identifier (producer is 'rigel')") &&
+      vegaBad.split("\n").filter((l) => l.includes("Line 17: ")).length === 1,
   );
 
   // --- mira-embed.v1: shipped fixtures ---
@@ -867,6 +892,15 @@ try {
     ["key surrounded by spaces is trimmed", card({ key: "  orion:Lab_X:check_a  " }), true],
     ["mira key for producer mira", card({ producer: "mira", key: "mira:dem-chan:stop-3", origin: { kind: "mira-stop", path: "p" } }), true],
     ["sirius key for producer sirius", card({ producer: "sirius", key: "sirius:weekly:1" }), true],
+    [
+      "rigel key for producer rigel (amendment 2026-10-13)",
+      card({ producer: "rigel", key: "rigel:GCI_World_2026_September:D3#12:9f2c1a0b", origin: { kind: "rigel-ref", path: "D:/x/lecture.md", locator: "D3#12 · slide 7" } }),
+      true,
+    ],
+    ["key of another producer for producer rigel", card({ producer: "rigel", key: "polaris:GCI_World_2026_September:D3#12:9f2c1a0b", origin: { kind: "rigel-ref", path: "p" } }), false],
+    ["rigel key with nothing after the prefix", card({ producer: "rigel", key: "rigel:", origin: { kind: "rigel-ref", path: "p" } }), false],
+    ["rigel key that only looks like the prefix (rigelx:)", card({ producer: "rigel", key: "rigelx:a", origin: { kind: "rigel-ref", path: "p" } }), false],
+    ["rigel key for producer orion", card({ key: "rigel:Lab_X:check_a" }), false],
     ["producer vega", card({ producer: "vega" }), false],
     ["missing producer", omit(cardBase, "producer"), false],
   ]);
@@ -912,6 +946,13 @@ try {
     ["origin kind polaris-fact", card({ origin: { kind: "polaris-fact", path: "p" } }), true],
     ["origin kind aurora-quiz", card({ origin: { kind: "aurora-quiz", path: "p" } }), true],
     ["origin kind notebook is unknown", card({ origin: { kind: "notebook", path: "p" } }), false],
+    ["origin kind rigel-ref (amendment 2026-10-13)", card({ origin: { kind: "rigel-ref", path: "p" } }), true],
+    [
+      "origin kind rigel-ref with locator and href",
+      card({ origin: { kind: "rigel-ref", path: "D:/x/lecture.md", locator: "D3#12 · slide 7", href: "file:///D:/x/lecture.md#D3-12" } }),
+      true,
+    ],
+    ["origin kind rigel-note is unknown", card({ origin: { kind: "rigel-note", path: "p" } }), false],
     ["kind reverse", card({ kind: "reverse" }), true],
     ["kind cloze", card({ kind: "cloze", front: "Hàm [[len]] đếm phần tử" }), true],
     ["kind palace is not a card kind here", card({ kind: "palace" }), false],
@@ -1123,6 +1164,35 @@ try {
     );
   }
 
+  // --- schema.json carries the amendment of 2026-10-13: producer rigel, origin kind rigel-ref, one key rule per producer ---
+  const inboxSchemaDoc = JSON.parse(readFileSync(join(ROOT, "contracts", "vega-card-inbox.v1", "schema.json"), "utf8"));
+  const inboxProducerEnum = inboxSchemaDoc.properties.producer.enum;
+  const inboxOriginKindEnum = inboxSchemaDoc.properties.origin.properties.kind.enum;
+  const rigelKeyRule = inboxSchemaDoc.allOf.find((rule) => rule.if?.properties?.producer?.const === "rigel");
+  ok(
+    "vega-card-inbox.v1 schema.json lists producer rigel and origin kind rigel-ref, with the rigel: key prefix rule (one rule per producer)",
+    JSON.stringify(inboxProducerEnum) === JSON.stringify(["polaris", "orion", "mira", "aurora", "sirius", "rigel", "manual"]) &&
+      inboxOriginKindEnum.length === 9 &&
+      inboxOriginKindEnum.includes("rigel-ref") &&
+      rigelKeyRule?.then?.properties?.key?.pattern === "^rigel:." &&
+      inboxSchemaDoc.allOf.length === inboxProducerEnum.length,
+    `${inboxProducerEnum.length} producers, ${inboxOriginKindEnum.length} origin kinds, ${inboxSchemaDoc.allOf.length} key rules`,
+  );
+  const validInboxFixtureRecords = readFileSync(vegaValidFixture, "utf8")
+    .split(/\r?\n/)
+    .filter((l) => l.trim())
+    .map((l) => JSON.parse(l));
+  const rigelFixtureLine = validInboxFixtureRecords.find((l) => l.producer === "rigel");
+  ok(
+    "vega-card-inbox.v1 valid.jsonl carries a rigel line: key rigel:..., origin rigel-ref with an absolute path and a '<ref> · slide N' locator",
+    validInboxFixtureRecords.length === 9 &&
+      rigelFixtureLine?.key.startsWith("rigel:") === true &&
+      rigelFixtureLine?.origin.kind === "rigel-ref" &&
+      /^[A-Za-z]:\//.test(rigelFixtureLine?.origin.path ?? "") &&
+      /^\S+ · slide \d+$/.test(rigelFixtureLine?.origin.locator ?? ""),
+    JSON.stringify(rigelFixtureLine?.origin),
+  );
+
   // --- the JSON examples printed in the two READMEs must pass the validator ---
   for (const contract of ["vega-card-inbox.v1", "mira-embed.v1"]) {
     const readme = readFileSync(join(ROOT, "contracts", contract, "README.md"), "utf8");
@@ -1132,6 +1202,26 @@ try {
       `${contract}: the ${examples.length} JSON examples in its README are valid`,
       examples.length >= 1 && res.ok === true && res.validLines === examples.length,
       JSON.stringify(res.errors.map((e) => `${e.line}: ${e.message}`)),
+    );
+  }
+
+  // --- the Mermaid diagram of each README: every edge label quoted, <br> (never \n) in node labels, Rigel node and edges ---
+  for (const file of ["README.md", "README.vi.md"]) {
+    const readme = readFileSync(join(ROOT, file), "utf8");
+    const blocks = [...readme.matchAll(/```mermaid\r?\n([\s\S]*?)```/g)].map((m) => m[1]);
+    const diagram = blocks.join("\n");
+    const edgeLines = diagram.split("\n").filter((l) => /-->|-\.->/.test(l));
+    const unquotedEdges = edgeLines.filter((l) => !/(-->|-\.->)\|"[^"]+"\|/.test(l));
+    ok(
+      `${file}: the Mermaid diagram quotes every edge label, writes line breaks as <br> (never \\n), and has the Rigel node with its two edges`,
+      blocks.length === 1 &&
+        edgeLines.length > 0 &&
+        unquotedEdges.length === 0 &&
+        !diagram.includes("\\n") &&
+        /Rigel\["[^"\n]*<br>[^"\n]*"\]/.test(diagram) &&
+        /Constellation -->\|"[^"]+"\| Rigel\b/.test(diagram) &&
+        /Rigel -\.->\|"vega-card-inbox\.v1"\| Vega\b/.test(diagram),
+      unquotedEdges.join(" | "),
     );
   }
 
@@ -1216,7 +1306,7 @@ try {
 
   // Version command
   const verOut = execFileSync(process.execPath, [cliBin, "version"], { env: testEnv, encoding: "utf8" }).trim();
-  ok("CLI version prints 0.1.7", verOut === "0.1.7");
+  ok("CLI version prints 0.1.8", verOut === "0.1.8");
 
   // Status command
   const statusOut = execFileSync(process.execPath, [cliBin, "status"], { env: testEnv, encoding: "utf8" });
@@ -1322,13 +1412,14 @@ try {
       "vega-card-inbox.v1",
       vegaValidFixture,
       vegaInvalidFixture,
-      8,
+      9,
       [
         [1, "key: required field is missing"],
         [2, "key: must start with 'orion:'"],
         [3, "difficulty: unknown field"],
         [4, "front: must be at most 600 characters"],
         [5, "origin.kind"],
+        [17, "key: must start with 'rigel:'"],
       ],
     ],
     [

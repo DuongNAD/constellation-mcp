@@ -63,7 +63,7 @@ async function safe(fn: () => Promise<ToolResult>): Promise<ToolResult> {
 
 const INSTRUCTIONS = `Constellation MCP manages the learner's MCP ecosystem — manifest, registration into coding agents, health checks, drift doctor, safe updates, and shared contracts.
 
-Ecosystem members (all by DuongNAD): Polaris (course architect), Aurora Slides (decks), Vega (FSRS memory), Orion (practice labs), Sirius (execution loop), Mira (code tracing), SmartDrive-OS (SSD governance), mcp-agy (Antigravity delegation).
+Ecosystem members (all by DuongNAD): Polaris (course architect), Aurora Slides (decks), Vega (FSRS memory), Orion (practice labs), Sirius (execution loop), Mira (code tracing), Rigel (grounded Q&A over lesson materials), SmartDrive-OS (SSD governance), mcp-agy (Antigravity delegation).
 
 Workflow:
 1. eco_status to inspect registered servers and agent sync status.

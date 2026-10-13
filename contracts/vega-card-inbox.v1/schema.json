@@ -19,7 +19,7 @@
     },
     "producer": {
       "type": "string",
-      "enum": ["polaris", "orion", "mira", "aurora", "sirius", "manual"],
+      "enum": ["polaris", "orion", "mira", "aurora", "sirius", "rigel", "manual"],
       "description": "Project that produced the card candidate"
     },
     "key": {
@@ -81,6 +81,7 @@
             "aurora-predict",
             "orion-attempt",
             "mira-stop",
+            "rigel-ref",
             "manual"
           ]
         },
@@ -88,12 +89,12 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 400,
-          "description": "File or folder the card comes from"
+          "description": "File or folder the card comes from (rigel-ref: absolute path of the source file)"
         },
         "locator": {
           "type": "string",
           "maxLength": 120,
-          "description": "Place inside the origin, e.g. 'stop 3'"
+          "description": "Place inside the origin, e.g. 'stop 3' or 'D3#12 · slide 7'"
         },
         "href": {
           "type": "string",
@@ -137,6 +138,10 @@
     {
       "if": { "properties": { "producer": { "const": "sirius" } }, "required": ["producer"] },
       "then": { "properties": { "key": { "type": "string", "pattern": "^sirius:." } } }
+    },
+    {
+      "if": { "properties": { "producer": { "const": "rigel" } }, "required": ["producer"] },
+      "then": { "properties": { "key": { "type": "string", "pattern": "^rigel:." } } }
     },
     {
       "if": { "properties": { "producer": { "const": "manual" } }, "required": ["producer"] },

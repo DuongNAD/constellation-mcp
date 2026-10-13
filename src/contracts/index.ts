@@ -84,7 +84,7 @@ export const CONTRACTS: Record<string, ContractInfo> = {
     name: "vega-card-inbox.v1",
     title: "Vega Card Inbox Contract v1",
     description:
-      "One adaptive review queue: Polaris, Orion, Mira (and Aurora, Sirius, manual) drop card candidates as JSON Lines files in <hub>/.vega/inbox/; Vega alone validates, de-duplicates by key and schedules them with FSRS.",
+      "One adaptive review queue: Polaris, Orion, Mira, Rigel (and Aurora, Sirius, manual) drop card candidates as JSON Lines files in <hub>/.vega/inbox/; Vega alone validates, de-duplicates by key and schedules them with FSRS.",
     type: "data",
     schemaPath: join(CONTRACT_ROOT, "vega-card-inbox.v1", "schema.json"),
     hasValidator: true,

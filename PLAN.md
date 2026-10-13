@@ -13,6 +13,7 @@ Ecosystem (all by DuongNAD):
   session timer, weekly plan-vs-actual review.
 - Mira (https://github.com/DuongNAD/mira-mcp): code-tracing lab: real Python traces, line-by-line players with
   prediction gates, embeddable in Aurora `trace` slides.
+- Rigel (rigel-mcp): grounded Q&A over the learner's lesson materials, refs and coverage; feeds the Vega inbox.
 - SmartDrive-OS (https://github.com/DuongNAD/smart-drive-os): exFAT SSD governance, index and learning search.
 - mcp-agy: delegates coding work to Google Antigravity.
 - Constellation (this project): registration, health, updates, contracts.
@@ -88,11 +89,14 @@ Reference for config formats and edge cases (read only): SmartDrive-OS smart_dri
 - `post-write-hook`: `smart-drive update <dir> --quiet` (who calls it, when, how to disable).
 - `source-labels`: "Khóa học" / "Mở rộng" / "chưa xác minh" and how Aurora `source` and Polaris fact labels map.
 - `personal-data`: canonical ignore patterns for personal learning data (.vega/, **/progress.jsonl, aurora-progress-*.jsonl, orion-attempts.jsonl, .polaris/, .sirius/) and third-party/regenerable files (**/polaris/captures/, **/polaris/.cache/). Includes machine-readable patterns.json and automated .gitignore validator (8 patterns).
-- `vega-card-inbox.v1`: the one entry point for review items. Producers (polaris, orion, mira, aurora, sirius, manual) write
+- `vega-card-inbox.v1`: the one entry point for review items. Producers (polaris, orion, mira, aurora, sirius, rigel, manual) write
   JSONL card candidates (fields: v, t, producer, key `<producer>:...`, subject, deck, kind basic|cloze|reverse, front, back, hint,
   hook, origin {kind, path, locator, href}, tags, reason; unknown fields rejected) to `<hub>/.vega/inbox/<producer>-<stamp>-<hex>.jsonl`;
   Vega alone validates, de-duplicates by key and schedules with FSRS. Zod validator mirrors the reference consumer (trimmed values,
-  code-point lengths, calendar-checked `t`, no emoji in front) and reports per-line errors.
+  code-point lengths, calendar-checked `t`, no emoji in front) and reports per-line errors. Amendment 2026-10-13 (backward
+  compatible, still v1): producer `rigel` (Rigel, key `rigel:<subject or course>:<ref>:<first 8 hex of sha1(front)>`) and origin
+  kind `rigel-ref` (a citable chunk of a lesson file: `path` = absolute source file, `locator` = `<ref> · <slide/page/section>`,
+  `href` optional); consumer and validator accept both values, nothing else changes.
 - `mira-embed.v1`: the postMessage protocol between a Mira player and the Aurora deck that embeds it in a `trace` slide:
   player -> parent `ready {title, steps, stops}`, `event {event}` (aurora-progress-event.v1; `predict` relayed, `complete`
   ignored) and `blur`; parent -> player `hello {theme, accent?}`. The parent accepts only messages from its own trace iframes with
@@ -119,10 +123,16 @@ and fake MCP server scripts. Checks:
 - `vega-card-inbox.v1` and `mira-embed.v1`: `list`/`show`/`validate` over MCP and CLI, valid fixtures pass, every invalid fixture
   line is reported by number and rule, boundary cases generated under %TEMP% (600/601 chars, 10/11 tags, calendar dates, BOM, empty
   file, JSON array), and each `schema.json` agrees with the validator on every fixture line (ajv from the toolchain);
+  the `rigel` producer and `rigel-ref` origin kind (valid and invalid fixture line, key prefix rule in the validator and in `schema.json`,
+  amendment documented in the contract README);
 - `personal-data`: valid `.gitignore` fixtures cover 8/8 patterns, a 0.1.6-style block reports `.sirius/` missing, and
   `patterns.json`, the README table and the fixtures list the same patterns as the validator.
 
 ## Status
+- 2026-10-13: v0.1.8 released. `vega-card-inbox.v1` amended (backward compatible, still v1): producer `rigel` (Rigel) and origin kind
+  `rigel-ref` added to the validator, `schema.json` (enums and the `rigel:` key prefix rule), the contract README (amendment section, key
+  conventions) and the fixtures (one valid and one invalid `rigel` line); Rigel (rigel-mcp) added to the ecosystem lists (guide overview,
+  server instructions, README tables and diagrams), no repository link.
 - 2026-10-12: v0.1.7 released. New shared contracts `vega-card-inbox.v1` (one adaptive review queue: producers drop card
   candidates in `<hub>/.vega/inbox/`, Vega alone validates, dedupes and schedules) and `mira-embed.v1` (postMessage protocol between
   Mira players and Aurora `trace` slides), each with README, JSON Schema, fixtures and a line validator reachable through

@@ -19,6 +19,7 @@ flowchart TD
     Orion["Orion MCP<br>(Practice Labs & Tutoring Ladder)"]
     Sirius["Sirius MCP<br>(Execution Loop & Deadlines)"]
     Mira["Mira MCP<br>(Code Tracing Lab)"]
+    Rigel["Rigel MCP<br>(Grounded Q&A & Refs)"]
   end
 
   subgraph ControlPlane["Control Plane"]
@@ -47,12 +48,14 @@ flowchart TD
   Constellation -->|"Health & Updates"| Orion
   Constellation -->|"Health & Updates"| Sirius
   Constellation -->|"Health & Updates"| Mira
+  Constellation -->|"Health & Updates"| Rigel
 
   Aurora -.->|"aurora-progress-event.v1"| Polaris
   Aurora -.->|"aurora-progress-event.v1 (card)"| Vega
   Polaris -.->|"vega-card-inbox.v1"| Vega
   Orion -.->|"vega-card-inbox.v1"| Vega
   Mira -.->|"vega-card-inbox.v1"| Vega
+  Rigel -.->|"vega-card-inbox.v1"| Vega
   Mira -.->|"mira-embed.v1"| Aurora
   Polaris -.->|"post-write-hook"| SmartDrive
   Aurora -.->|"post-write-hook"| SmartDrive
@@ -71,6 +74,7 @@ flowchart TD
 | **Orion** | [orion-mcp](https://github.com/DuongNAD/orion-mcp) | Practice labs with real tests and tutoring-ladder hints | `personal-data`, `vega-card-inbox.v1` |
 | **Sirius** | [sirius-mcp](https://github.com/DuongNAD/sirius-mcp) | Execution loop: deadline sentinel, task triage, today router, session timer, weekly plan-vs-actual review | `personal-data` |
 | **Mira** | [mira-mcp](https://github.com/DuongNAD/mira-mcp) | Code-tracing lab: real Python traces, line-by-line players with prediction gates, embeddable in Aurora `trace` slides | `mira-embed.v1`, `aurora-progress-event.v1` (`predict`, `complete` events), `vega-card-inbox.v1`, `personal-data` |
+| **Rigel** (rigel-mcp) | — | Grounded Q&A over the learner's lesson materials, refs and coverage; feeds the Vega inbox | `vega-card-inbox.v1` |
 | **mcp-agy** | [mcp-agy](https://github.com/DuongNAD/mcp-agy) | Google Antigravity delegation gateway | — |
 
 ---
@@ -197,13 +201,16 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 3. [`post-write-hook`](contracts/post-write-hook/README.md): Debounced `smart-drive update <dir> --quiet` notification standard.
 4. [`source-labels`](contracts/source-labels/README.md): "Khóa học" / "Mở rộng" / "chưa xác minh" label mappings.
 5. [`personal-data`](contracts/personal-data/README.md): Canonical ignore patterns for sensitive personal learning data (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`, `.polaris/`, `.sirius/`) and third-party/regenerable files (`**/polaris/captures/`, `**/polaris/.cache/`). Includes automated `.gitignore` validator.
-6. [`vega-card-inbox.v1`](contracts/vega-card-inbox.v1/README.md): One adaptive review queue. Polaris, Orion and Mira (and Aurora, Sirius, manual) drop card candidates as JSON Lines files in `<hub>/.vega/inbox/`; Vega alone validates, deduplicates by key and schedules them with FSRS. Includes JSON Schema, fixtures and a line validator.
+6. [`vega-card-inbox.v1`](contracts/vega-card-inbox.v1/README.md): One adaptive review queue. Polaris, Orion, Mira and Rigel (and Aurora, Sirius, manual) drop card candidates as JSON Lines files in `<hub>/.vega/inbox/`; Vega alone validates, deduplicates by key and schedules them with FSRS. Amended on 2026-10-13 (backward compatible, still v1) with the producer `rigel` and the origin kind `rigel-ref`. Includes JSON Schema, fixtures and a line validator.
 7. [`mira-embed.v1`](contracts/mira-embed.v1/README.md): `postMessage` protocol between a Mira player (iframe) and the Aurora deck that embeds it in a `trace` slide: `ready`, `event` and `blur` from the player, `hello` from the deck. Includes JSON Schema, fixtures and a message validator.
 
 ---
 
 ## Version History
 
+- **0.1.8** (2026-10-13):
+  - **`vega-card-inbox.v1` amended (backward compatible, still v1)**: new producer `rigel` (Rigel, grounded Q&A over the learner's lesson materials) and new origin kind `rigel-ref` (a citable chunk of a lesson file: `path` = absolute path of the source file, `locator` = `<ref> · <slide/page/section>` such as `D3#12 · slide 7`, `href` optional). Key convention `rigel:<subject or course>:<ref>:<first 8 hex of sha1(front)>`. The validator, `schema.json` (both enums and the `rigel:` key prefix rule), the contract README (amendment section, key table) and the fixtures (one valid and one invalid `rigel` line) know both values; every line that was valid before is still valid.
+  - **Ecosystem lists**: Rigel (rigel-mcp) added to the guide overview, the server instructions, the README tables and diagram (no repository link).
 - **0.1.7** (2026-10-12):
   - **Vega card inbox contract (`vega-card-inbox.v1`)**: one adaptive review queue. Polaris, Orion and Mira drop card candidates as JSON Lines files in `<hub>/.vega/inbox/` and Vega alone validates, deduplicates by key and schedules them with FSRS. Includes README, JSON Schema, fixtures and a validator (`constellation contracts validate vega-card-inbox.v1 <file>`) with per-line errors.
   - **Mira embed contract (`mira-embed.v1`)**: the `postMessage` protocol between Mira players and Aurora `trace` slides (`ready`, `event`, `blur` from the player, `hello` from the deck), with field rules, relayed events, security notes, JSON Schema, fixtures and a message validator.

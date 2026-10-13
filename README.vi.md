@@ -19,6 +19,7 @@ flowchart TD
     Orion["Orion MCP<br>(Bài thực hành & Thang gợi ý)"]
     Sirius["Sirius MCP<br>(Vòng lặp thực thi & Hạn chót)"]
     Mira["Mira MCP<br>(Phòng dò code)"]
+    Rigel["Rigel MCP<br>(Hỏi đáp có nguồn dẫn & Tham chiếu)"]
   end
 
   subgraph ControlPlane["Trung tâm điều khiển"]
@@ -47,12 +48,14 @@ flowchart TD
   Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| Orion
   Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| Sirius
   Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| Mira
+  Constellation -->|"Kiểm tra sức khỏe & Cập nhật"| Rigel
 
   Aurora -.->|"aurora-progress-event.v1"| Polaris
   Aurora -.->|"aurora-progress-event.v1 (card)"| Vega
   Polaris -.->|"vega-card-inbox.v1"| Vega
   Orion -.->|"vega-card-inbox.v1"| Vega
   Mira -.->|"vega-card-inbox.v1"| Vega
+  Rigel -.->|"vega-card-inbox.v1"| Vega
   Mira -.->|"mira-embed.v1"| Aurora
   Polaris -.->|"post-write-hook"| SmartDrive
   Aurora -.->|"post-write-hook"| SmartDrive
@@ -71,6 +74,7 @@ flowchart TD
 | **Orion** | [orion-mcp](https://github.com/DuongNAD/orion-mcp) | Bài thực hành có test thật và thang gợi ý từng bậc | `personal-data`, `vega-card-inbox.v1` |
 | **Sirius** | [sirius-mcp](https://github.com/DuongNAD/sirius-mcp) | Vòng lặp thực thi: canh hạn chót, phân loại việc, định tuyến hôm nay, bấm giờ phiên học, đối chiếu kế hoạch và thực tế hằng tuần | `personal-data` |
 | **Mira** | [mira-mcp](https://github.com/DuongNAD/mira-mcp) | Phòng dò code: vết chạy Python thật, trình phát từng dòng với điểm dừng dự đoán, nhúng được vào slide `trace` của Aurora | `mira-embed.v1`, `aurora-progress-event.v1` (sự kiện `predict`, `complete`), `vega-card-inbox.v1`, `personal-data` |
+| **Rigel** (rigel-mcp) | — | Hỏi đáp có nguồn dẫn trên tài liệu bài học của người học, kèm tham chiếu và độ phủ; nạp thẻ vào hộp thư Vega | `vega-card-inbox.v1` |
 | **mcp-agy** | [mcp-agy](https://github.com/DuongNAD/mcp-agy) | Cổng ủy quyền Google Antigravity cho subagent | — |
 
 ---
@@ -197,13 +201,16 @@ node dist/constellation.mjs contracts validate personal-data .gitignore
 3. [`post-write-hook`](contracts/post-write-hook/README.md): Cơ chế thông báo cập nhật ngầm `smart-drive update <dir> --quiet`.
 4. [`source-labels`](contracts/source-labels/README.md): Quy ước nhãn tài liệu "Khóa học" / "Mở rộng" / "chưa xác minh".
 5. [`personal-data`](contracts/personal-data/README.md): Các mẫu loại trừ chuẩn (canonical ignore patterns) cho dữ liệu học tập cá nhân nhạy cảm (`.vega/`, `**/progress.jsonl`, `aurora-progress-*.jsonl`, `orion-attempts.jsonl`, `.polaris/`, `.sirius/`) và tài nguyên bên thứ ba/tạo lại được (`**/polaris/captures/`, `**/polaris/.cache/`). Đi kèm bộ kiểm định `.gitignore` tự động.
-6. [`vega-card-inbox.v1`](contracts/vega-card-inbox.v1/README.md): Một hàng đợi ôn tập thích ứng duy nhất. Polaris, Orion và Mira (cùng Aurora, Sirius, nhập tay) thả ứng viên thẻ dưới dạng tệp JSON Lines vào `<hub>/.vega/inbox/`; chỉ Vega kiểm tra, loại trùng theo khóa và xếp lịch bằng FSRS. Đi kèm JSON Schema, fixtures và bộ kiểm định từng dòng.
+6. [`vega-card-inbox.v1`](contracts/vega-card-inbox.v1/README.md): Một hàng đợi ôn tập thích ứng duy nhất. Polaris, Orion, Mira và Rigel (cùng Aurora, Sirius, nhập tay) thả ứng viên thẻ dưới dạng tệp JSON Lines vào `<hub>/.vega/inbox/`; chỉ Vega kiểm tra, loại trùng theo khóa và xếp lịch bằng FSRS. Bổ sung ngày 2026-10-13 (tương thích ngược, vẫn là v1): nhà sản xuất `rigel` và loại nguồn `rigel-ref`. Đi kèm JSON Schema, fixtures và bộ kiểm định từng dòng.
 7. [`mira-embed.v1`](contracts/mira-embed.v1/README.md): Giao thức `postMessage` giữa trình phát Mira (iframe) và deck Aurora nhúng nó trong slide `trace`: `ready`, `event`, `blur` từ trình phát, `hello` từ deck. Đi kèm JSON Schema, fixtures và bộ kiểm định thông điệp.
 
 ---
 
 ## Lịch sử phiên bản
 
+- **0.1.8** (2026-10-13):
+  - **Bổ sung `vega-card-inbox.v1` (tương thích ngược, vẫn là v1)**: nhà sản xuất mới `rigel` (Rigel, hỏi đáp có nguồn dẫn trên tài liệu bài học của người học) và loại nguồn mới `rigel-ref` (một đoạn tài liệu bài học có thể trích dẫn: `path` = đường dẫn tuyệt đối của tệp nguồn, `locator` = `<ref> · <slide/trang/mục>` như `D3#12 · slide 7`, `href` tùy chọn). Quy ước khóa `rigel:<môn hoặc khóa học>:<ref>:<8 hex đầu của sha1(front)>`. Bộ kiểm định, `schema.json` (cả hai enum và quy tắc tiền tố khóa `rigel:`), README của hợp đồng (mục bổ sung, bảng khóa) và fixtures (một dòng `rigel` hợp lệ, một dòng không hợp lệ) đều nhận biết hai giá trị mới; mọi dòng từng hợp lệ trước đó vẫn hợp lệ.
+  - **Danh sách hệ sinh thái**: Rigel (rigel-mcp) được thêm vào phần hướng dẫn tổng quan, chỉ dẫn của server, bảng và sơ đồ README (chưa có liên kết kho mã).
 - **0.1.7** (2026-10-12):
   - **Hợp đồng hộp thư thẻ Vega (`vega-card-inbox.v1`)**: một hàng đợi ôn tập thích ứng duy nhất. Polaris, Orion và Mira thả ứng viên thẻ dưới dạng tệp JSON Lines vào `<hub>/.vega/inbox/`, chỉ Vega kiểm tra, loại trùng theo khóa và xếp lịch bằng FSRS. Có README, JSON Schema, fixtures và bộ kiểm định (`constellation contracts validate vega-card-inbox.v1 <file>`) báo lỗi theo từng dòng.
   - **Hợp đồng nhúng Mira (`mira-embed.v1`)**: giao thức `postMessage` giữa trình phát Mira và slide `trace` của Aurora (`ready`, `event`, `blur` từ trình phát, `hello` từ deck), kèm quy tắc trường, sự kiện được chuyển tiếp, lưu ý bảo mật, JSON Schema, fixtures và bộ kiểm định thông điệp.

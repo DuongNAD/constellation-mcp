@@ -1,9 +1,9 @@
 # Contract: `vega-card-inbox.v1`
 
 ## Purpose
-`vega-card-inbox.v1` is the single entry point for review items in the learner's MCP ecosystem. It is shared by **Vega** (the consumer), **Polaris**, **Orion** and **Mira** (producers; **Aurora** and **Sirius** are also allowed producers) and **Constellation** (the validator).
+`vega-card-inbox.v1` is the single entry point for review items in the learner's MCP ecosystem. It is shared by **Vega** (the consumer), **Polaris**, **Orion**, **Mira** and **Rigel** (producers; **Aurora** and **Sirius** are also allowed producers) and **Constellation** (the validator).
 
-Evidence on spaced practice (Latimier et al. 2021; Lindsey et al. 2014; Rawson and Dunlosky 2011) favours one adaptive spacing scheduler over several fixed ones, and two schedulers create review debt. So every producer of review items (Polaris error log and lesson self-checks, Orion repeated failures, Mira missed prediction stops, future Aurora exports) drops **card candidates** into Vega's inbox, and **Vega alone** validates, deduplicates and schedules them with FSRS. Producers never write `.vega/cards.json` or `.vega/reviews.jsonl`.
+Evidence on spaced practice (Latimier et al. 2021; Lindsey et al. 2014; Rawson and Dunlosky 2011) favours one adaptive spacing scheduler over several fixed ones, and two schedulers create review debt. So every producer of review items (Polaris error log and lesson self-checks, Orion repeated failures, Mira missed prediction stops, Rigel questions grounded in lesson materials, future Aurora exports) drops **card candidates** into Vega's inbox, and **Vega alone** validates, deduplicates and schedules them with FSRS. Producers never write `.vega/cards.json` or `.vega/reviews.jsonl`.
 
 ---
 
@@ -25,7 +25,7 @@ Every line is one JSON object. **Unknown fields are rejected**, at the top level
 |---|---|---|
 | `v` | integer | Required, literal `1`. |
 | `t` | string | Required, ISO 8601 date-time with an offset or `Z` (for example `2026-10-12T21:04:10+07:00`). |
-| `producer` | string | Required, one of `polaris`, `orion`, `mira`, `aurora`, `sirius`, `manual`. |
+| `producer` | string | Required, one of `polaris`, `orion`, `mira`, `aurora`, `sirius`, `rigel`, `manual`. |
 | `key` | string | Required, 1-200 chars, stable dedupe key. MUST start with `<producer>:` followed by an identifier. |
 | `subject` | string | Required, 1-120 chars (subject folder name such as `Machine_Learning`, or its display name). |
 | `deck` | string | Optional, at most 120 chars (lesson, module, lab, or player title). |
@@ -34,7 +34,7 @@ Every line is one JSON object. **Unknown fields are rejected**, at the top level
 | `back` | string | Required, 0-1200 chars (may be empty). |
 | `hint` | string | Optional, at most 200 chars. |
 | `hook` | string | Optional, at most 200 chars (memory hook). |
-| `origin` | object | Required: `kind` is one of `polaris-fact`, `polaris-errorlog`, `polaris-selfcheck`, `aurora-quiz`, `aurora-predict`, `orion-attempt`, `mira-stop`, `manual`; `path` is a string of 1-400 chars (file or folder); `locator` is optional, at most 120 chars; `href` is optional, at most 400 chars (a link that opens the origin, for example a Mira player with `#stop-3`). |
+| `origin` | object | Required: `kind` is one of `polaris-fact`, `polaris-errorlog`, `polaris-selfcheck`, `aurora-quiz`, `aurora-predict`, `orion-attempt`, `mira-stop`, `rigel-ref`, `manual`; `path` is a string of 1-400 chars (file or folder); `locator` is optional, at most 120 chars; `href` is optional, at most 400 chars (a link that opens the origin, for example a Mira player with `#stop-3`). |
 | `tags` | string[] | Optional, at most 10 items, each 1-40 chars. |
 | `reason` | string | Optional, at most 200 chars: why the card was created (for example `Dự đoán sai ở điểm dừng 3`). |
 
@@ -80,8 +80,30 @@ The reference consumer (Vega) and the Constellation validator apply the table th
 | Polaris lesson self-check | `polaris:<subject folder name>:selfcheck:<module id>:<index>` |
 | Orion | `orion:<lab folder name>:<check key>` |
 | Mira | `mira:<player slug>:stop-<k>` |
+| Rigel (rigel-mcp) | `rigel:<subject or course>:<ref>:<first 8 hex of sha1(front)>` (for example `rigel:GCI_World_2026_September:D3#12:9f2c1a0b`; added by the amendment of 2026-10-13) |
 
 A key must stay stable for the same underlying item: it is how Vega recognises a duplicate across batches.
+
+---
+
+## Amendment 2026-10-13 (backward compatible, still v1)
+
+- **New producer `rigel`** (Rigel: grounded Q&A over the learner's lesson materials) and **new origin kind `rigel-ref`** (a citable chunk of a lesson file).
+- **Key convention**: `rigel:<subject or course>:<ref>:<first 8 hex of sha1(front)>`, for example `rigel:GCI_World_2026_September:D3#12:9f2c1a0b`. As for every producer, the key must start with `<producer>:`, so a `rigel` line needs a key that starts with `rigel:`.
+- **Origin for `rigel-ref`**: `path` = absolute path of the source file, `locator` = `<ref> · <slide/page/section>` (for example `D3#12 · slide 7`), `href` optional.
+- **Consumers and validators**: Vega (the consumer) and Constellation (the validator) must accept both new enum values. Nothing else changes: every line that was valid before the amendment is still valid, so existing producers and inbox files need no change.
+
+**Example line** (wrapped here for reading; a real line is one physical line):
+
+```json
+{"v":1,"t":"2026-10-13T09:15:00+07:00","producer":"rigel","key":"rigel:GCI_World_2026_September:D3#12:9f2c1a0b",
+ "subject":"GCI_World_2026_September","deck":"D3",
+ "front":"Vì sao phải tách dữ liệu thành tập huấn luyện và tập kiểm tra?",
+ "back":"Để đo khả năng khái quát hóa của mô hình trên dữ liệu chưa từng thấy.",
+ "origin":{"kind":"rigel-ref","path":"D:/02_Learning_Knowledge/GCI_World_2026_September/03_Materials/D3_lecture.md",
+           "locator":"D3#12 · slide 7"},
+ "tags":["rigel"],"reason":"Câu trả lời có trích dẫn D3#12"}
+```
 
 ---
 
@@ -100,12 +122,12 @@ A key must stay stable for the same underlying item: it is how Vega recognises a
 constellation contracts validate vega-card-inbox.v1 <path-to-file.jsonl>
 ```
 
-The same check is available as `eco_contracts { action: "validate", name: "vega-card-inbox.v1", file }`. It reports every problem per line (`Line 4: front: must be at most 600 characters (got 601)`) and an OK summary such as `OK: Contract 'vega-card-inbox.v1' valid (8/8 lines)`.
+The same check is available as `eco_contracts { action: "validate", name: "vega-card-inbox.v1", file }`. It reports every problem per line (`Line 4: front: must be at most 600 characters (got 601)`) and an OK summary such as `OK: Contract 'vega-card-inbox.v1' valid (9/9 lines)`.
 
 The validator checks line content only. File naming, atomic writes and the `done/` and `rejected/` folders are producer and consumer responsibilities and are not checked.
 
 ## Files in This Folder
 
 - `schema.json`: JSON Schema (draft-07) for one line. It covers structure, enums, lengths and the producer-key prefix rule. Two rules are enforced by the Constellation validator only because portable JSON Schema cannot express them: no emoji in `front`, and `t` being a real calendar date-time.
-- `fixtures/valid.jsonl`: valid lines from several producers (Polaris error log and self-check, Orion, Mira, Aurora, manual cloze and reverse, Sirius).
-- `fixtures/invalid.jsonl`: one violation per line (missing key, wrong producer prefix, unknown field, over-long front, bad origin kind, malformed JSON, and more); the validator reports each by line number.
+- `fixtures/valid.jsonl`: valid lines from several producers (Polaris error log and self-check, Orion, Mira, Aurora, manual cloze and reverse, Sirius, Rigel with a `rigel-ref` origin).
+- `fixtures/invalid.jsonl`: one violation per line (missing key, wrong producer prefix, unknown field, over-long front, bad origin kind, malformed JSON, a `rigel` line whose key does not start with `rigel:`, and more); the validator reports each by line number.

@@ -11,36 +11,36 @@ Constellation is the control plane for the learner's MCP ecosystem:
 ```mermaid
 flowchart TD
   subgraph Ecosystem["Ecosystem by DuongNAD"]
-    Polaris["Polaris MCP\n(Course Architect & Retention)"]
-    Aurora["Aurora Slides MCP\n(Decks & Interactive Learning)"]
-    SmartDrive["SmartDrive-OS\n(SSD Governance & Search)"]
-    McpAgy["mcp-agy\n(Antigravity Delegation)"]
+    Polaris["Polaris MCP<br>(Course Architect & Retention)"]
+    Aurora["Aurora Slides MCP<br>(Decks & Interactive Learning)"]
+    SmartDrive["SmartDrive-OS<br>(SSD Governance & Search)"]
+    McpAgy["mcp-agy<br>(Antigravity Delegation)"]
   end
 
   subgraph ControlPlane["Control Plane"]
-    Constellation["Constellation MCP\n(~/.constellation/ecosystem.json)"]
+    Constellation["Constellation MCP<br>(~/.constellation/ecosystem.json)"]
   end
 
   subgraph Agents["Coding Agents"]
-    Claude["Claude Code\n(~/.claude.json)"]
-    Antigravity["Google Antigravity\n(~/.gemini/*/mcp_config.json)"]
-    Cursor["Cursor IDE\n(~/.cursor/mcp.json)"]
-    Codex["OpenAI Codex\n(~/.codex/config.toml)"]
+    Claude["Claude Code<br>(~/.claude.json)"]
+    Antigravity["Google Antigravity<br>(~/.gemini/*/mcp_config.json)"]
+    Cursor["Cursor IDE<br>(~/.cursor/mcp.json)"]
+    Codex["OpenAI Codex<br>(~/.codex/config.toml)"]
   end
 
-  Constellation -->|Manages & Registers| Claude
-  Constellation -->|Manages & Syncs CRLF| Antigravity
-  Constellation -->|Manages| Cursor
-  Constellation -->|Manages TOML| Codex
+  Constellation -->|"Manages & Registers"| Claude
+  Constellation -->|"Manages & Syncs CRLF"| Antigravity
+  Constellation -->|"Manages"| Cursor
+  Constellation -->|"Manages TOML"| Codex
 
-  Constellation -->|Health & Updates| Polaris
-  Constellation -->|Health & Updates| Aurora
-  Constellation -->|Health & Updates| SmartDrive
-  Constellation -->|Health & Updates| McpAgy
+  Constellation -->|"Health & Updates"| Polaris
+  Constellation -->|"Health & Updates"| Aurora
+  Constellation -->|"Health & Updates"| SmartDrive
+  Constellation -->|"Health & Updates"| McpAgy
 
-  Aurora -->|aurora-progress-event.v1| Polaris
-  Polaris -->|post-write-hook| SmartDrive
-  Aurora -->|post-write-hook| SmartDrive
+  Aurora -->|"aurora-progress-event.v1"| Polaris
+  Polaris -->|"post-write-hook"| SmartDrive
+  Aurora -->|"post-write-hook"| SmartDrive
 ```
 
 ---

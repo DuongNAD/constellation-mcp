@@ -1,10 +1,13 @@
 /**
  * vega-card-inbox.v1 contract specification and validator.
  *
- * Producers (Polaris, Orion, Mira, Aurora, Sirius, manual) drop card candidates as JSON Lines files into
+ * Producers (Polaris, Orion, Mira, Aurora, Sirius, Rigel, manual) drop card candidates as JSON Lines files into
  * <hub>/.vega/inbox/; Vega alone validates, de-duplicates by key and schedules them with FSRS. The rules below are
  * the line schema of contracts/vega-card-inbox.v1/README.md, applied the way the reference consumer (Vega) applies
  * them: values are trimmed first and lengths count Unicode code points.
+ *
+ * Amendment 2026-10-13 (backward compatible, still v1): producer "rigel" (Rigel, grounded Q&A over the learner's
+ * lesson materials) and origin kind "rigel-ref" (a citable chunk of a lesson file). Nothing else changed.
  */
 import { z } from "zod";
 import type { ContractValidationResult } from "../types.js";
@@ -17,7 +20,7 @@ import {
   validateJsonLinesFile,
 } from "./jsonl.js";
 
-export const VEGA_INBOX_PRODUCERS = ["polaris", "orion", "mira", "aurora", "sirius", "manual"] as const;
+export const VEGA_INBOX_PRODUCERS = ["polaris", "orion", "mira", "aurora", "sirius", "rigel", "manual"] as const;
 export const VEGA_INBOX_CARD_KINDS = ["basic", "cloze", "reverse"] as const;
 export const VEGA_INBOX_ORIGIN_KINDS = [
   "polaris-fact",
@@ -27,6 +30,7 @@ export const VEGA_INBOX_ORIGIN_KINDS = [
   "aurora-predict",
   "orion-attempt",
   "mira-stop",
+  "rigel-ref",
   "manual",
 ] as const;
 
@@ -38,8 +42,8 @@ const oneOf = (values: readonly string[]) => ({ error: `must be one of: ${values
 
 export const VegaCardInboxOriginSchema = z.strictObject({
   kind: z.enum(VEGA_INBOX_ORIGIN_KINDS, oneOf(VEGA_INBOX_ORIGIN_KINDS)),
-  path: boundedText(1, 400, true).describe("File or folder the card comes from"),
-  locator: boundedText(0, 120, true).optional().describe("Place inside the origin, e.g. 'stop 3'"),
+  path: boundedText(1, 400, true).describe("File or folder the card comes from (rigel-ref: absolute path of the source file)"),
+  locator: boundedText(0, 120, true).optional().describe("Place inside the origin, e.g. 'stop 3' or 'D3#12 · slide 7'"),
   href: boundedText(0, 400, true).optional().describe("Link that opens the origin, e.g. a Mira player with #stop-3"),
 });
 
